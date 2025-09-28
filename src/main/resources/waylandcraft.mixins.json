@@ -3,7 +3,6 @@
 	"package": "dev.evvie.waylandcraft.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"mixins": [
-		"NativeImageMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

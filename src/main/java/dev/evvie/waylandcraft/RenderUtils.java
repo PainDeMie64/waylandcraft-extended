@@ -6,9 +6,11 @@ import java.util.function.Supplier;
 
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL33;
 import org.lwjgl.system.MemoryUtil;
 
-import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.platform.TextureUtil;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -17,13 +19,11 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.math.Axis;
 
-import dev.evvie.waylandcraft.mixin.NativeImageMixin;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -66,9 +66,9 @@ public class RenderUtils {
 		drawQuad(camera, OptionalInt.of(tex.getId()), shader, p1, p2, p3, p4, uv1, uv2, uv3, uv4, color, alpha);
 	}
 	
-	private static DynamicTexture testTexture = null;
+	private static int testTexture = -1;
 	private static ByteBuffer testTextureData = null;
-	public static DynamicTexture getTestTexture(int offset) {
+	public static int getTestTexture(int offset) {
 		int width = 500;
 		int height = 500;
 		
@@ -86,18 +86,28 @@ public class RenderUtils {
 			testTextureData.put(i * 4 + 0, (byte) ((j % 50) * 5));
 			testTextureData.put(i * 4 + 3, (byte) 128);
 		}
-		testTextureData.rewind();
 		
 		// TODO:Change format to ARGB
 		// glTexImage2D(GL_TEXTURE_2D, 0, GL33.GL_RGBA8, width, height, 0, GL33.GL_BGRA, GL33.GL_UNSIGNED_INT_8_8_8_8_REV, buf);
 		
-		if(testTexture == null) {
-			NativeImage img = NativeImageMixin.fromPtr(NativeImage.Format.RGBA, width, height, false, MemoryUtil.memAddress(testTextureData));
-			testTexture = new DynamicTexture(img);
+		if(testTexture < 0) {
+			testTexture = TextureUtil.generateTextureId();
+			GlStateManager._bindTexture(testTexture);
+			GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MAX_LEVEL, 0);
+			GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MIN_LOD, 0);
+			GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MAX_LOD, 0);
+			GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_LOD_BIAS, 0.0F);
+			GlStateManager._texImage2D(GL33.GL_TEXTURE_2D, 0, GL33.GL_RGBA, width, height, 0, GL33.GL_RGBA, GL33.GL_UNSIGNED_BYTE, null);
 		}
-		else {
-			testTexture.upload();
-		}
+		
+		GlStateManager._bindTexture(testTexture);
+		GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MIN_FILTER, GL33.GL_NEAREST);
+		GlStateManager._texParameter(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MAG_FILTER, GL33.GL_NEAREST);
+		GlStateManager._pixelStore(GL33.GL_UNPACK_ROW_LENGTH, 0);
+		GlStateManager._pixelStore(GL33.GL_UNPACK_SKIP_PIXELS, 0);
+		GlStateManager._pixelStore(GL33.GL_UNPACK_SKIP_ROWS, 0);
+		GlStateManager._pixelStore(GL33.GL_UNPACK_ALIGNMENT, 4); // 4 components RGBA
+		GlStateManager._texSubImage2D(GL33.GL_TEXTURE_2D, 0, 0, 0, width, height, GL33.GL_RGBA, GL33.GL_UNSIGNED_BYTE, MemoryUtil.memAddress0(testTextureData));
 		
 		return testTexture;
 	}

@@ -33,7 +33,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 					new Vec2(0, 1), new Vec2(1, 1), new Vec2(1, 0), new Vec2(0, 0));
 			int offset = (int) (System.currentTimeMillis() / 10);
 			vec = vec.add(1, 0, 0);
-			RenderUtils.drawTexturedQuad(context.camera(), RenderUtils.getTestTexture(offset).getId(),
+			RenderUtils.drawTexturedQuad(context.camera(), RenderUtils.getTestTexture(offset),
 					vec, vec.add(1, 0, 0), vec.add(1, 1, 0), vec.add(0, 1, 0),
 					new Vec2(0, 1), new Vec2(1, 1), new Vec2(1, 0), new Vec2(0, 0));
 			RenderUtils.drawLine(context.camera(), new Vec3(-250, 65, -500), new Vec3(-250, 64, -500), 1.0f, 0.0f, 1.0f);
