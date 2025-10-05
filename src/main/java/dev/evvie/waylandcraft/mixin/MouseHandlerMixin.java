@@ -22,7 +22,10 @@ public class MouseHandlerMixin {
 		if(result == null) return;
 		
 		Window window = result.target;
-		if(!window.isAlive()) return;
+		if(!window.isAlive()) {
+			WaylandCraft.instance.hitResult = null;
+			return;
+		}
 		
 		info.cancel();
 		

@@ -14,7 +14,6 @@ import dev.evvie.waylandcraft.bridge.WaylandCraftBridge;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.Vec3;
@@ -59,22 +58,6 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			
 			sendMotionEvents();
 		});
-		
-		WorldRenderEvents.END.register(context -> {
-			if(hitResult == null) return;
-			
-			Vec3 coords = hitResult.surfaceLocal;
-			Window w = hitResult.target;
-			
-			if(!w.isAlive()) {
-				hitResult = null;
-				return;
-			}
-			
-			Camera camera = context.camera();
-			Vec3 hitPos = hitResult.target.origin().add(w.localX().scale(coords.x)).add(w.localY().scale(coords.y));
-			RenderUtils.drawMarker(camera, hitPos, 0.2, 1.0f, 0.0f, 1.0f);
-		});
 	}
 	
 	private void sendMotionEvents() {
@@ -88,7 +71,10 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 				return;
 			}
 			
-			LOGGER.info(coords.x + ", " + coords.y + " (" + hitResult.dist + ")");
+			if(hitResult.dist < 0) {
+				bridge.sendMotionOutside();
+				return;
+			}
 			
 			for(WLCSurface surface = w.toplevel.getSurfaceTreeLast(); surface != null; surface = surface.getPrevChild()) {
 				Vec3 rel = coords.subtract(surface.xSubpos, surface.ySubpos, 0);

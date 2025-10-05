@@ -424,6 +424,7 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_surfaceMotion<'l>(
             time: get_time(),
         }
     );
+    pointer.frame(&mut instance.state);
 }
 
 #[unsafe(no_mangle)]
@@ -453,6 +454,7 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_pointerButton<'l>(
             state
         }
     );
+    pointer.frame(&mut instance.state);
 }
 
 #[unsafe(no_mangle)]
