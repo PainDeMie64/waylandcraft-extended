@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.joml.Matrix4f;
+import org.lwjgl.glfw.GLFW;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -200,7 +201,11 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean keyPressed(int key, int scancode, int modifiers) {
-		if(super.keyPressed(key, scancode, modifiers)) return true;
+		if(getFocused() != null && getFocused().keyPressed(key, scancode, modifiers)) return true;
+		if(key == GLFW.GLFW_KEY_ESCAPE) {
+			this.onClose();
+			return true;
+		}
 		
 		if(focused != null) {
 			wlc.bridge.pressKey(scancode);
