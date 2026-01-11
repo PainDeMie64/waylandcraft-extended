@@ -99,7 +99,7 @@ impl WLCState {
         let dmabuf_global = init_dmabuf(&disp, &mut dmabuf_state, egl);
 
         let seat = WLCSeatState::new();
-        seat.create_global(&disp);
+        seat.create_globals(&disp);
 
         ddm::create_ddm_global(&disp);
 

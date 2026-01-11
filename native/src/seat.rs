@@ -17,6 +17,12 @@ use smithay::{
             DisplayHandle, Client, GlobalDispatch, Dispatch, New, DataInit,
             Resource,
         },
+        wayland_protocols::wp::relative_pointer::zv1::server::{
+            zwp_relative_pointer_manager_v1 as zwp_rpm,
+            zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1,
+            zwp_relative_pointer_v1 as zwp_relpointer,
+            zwp_relative_pointer_v1::ZwpRelativePointerV1,
+        },
     },
 };
 use xkbcommon::xkb::{self, Keymap};
@@ -33,6 +39,8 @@ pub struct WLCPointerData {
     // WlSurface holding pointer focus
     // This surface has to be of the same client as the WlPointer
     focus: Option<WlSurface>,
+    // Relative pointer object, if any
+    relative_pointer: Option<ZwpRelativePointerV1>,
 }
 
 type WLCPointer = Arc<Mutex<WLCPointerData>>;
@@ -103,8 +111,9 @@ impl WLCSeatState {
         }
     }
 
-    pub fn create_global(&self, disp: &DisplayHandle) {
+    pub fn create_globals(&self, disp: &DisplayHandle) {
         disp.create_global::<WLCState, WlSeat, ()>(10, ());
+        disp.create_global::<WLCState, ZwpRelativePointerManagerV1, ()>(1, ());
     }
 
     fn pointer_frame(&self, pointer: &WlPointer) {
@@ -315,6 +324,7 @@ impl Dispatch<WlSeat, ()> for WLCState {
             wl_seat::Request::GetPointer { id } => {
                 let pointer_data = WLCPointerData {
                     focus: None,
+                    relative_pointer: None,
                 };
                 let pointer_data = Arc::new(Mutex::new(pointer_data));
 
@@ -403,5 +413,72 @@ impl Dispatch<WlKeyboard, WLCKeyboard> for WLCState {
         _data: &WLCKeyboard,
     ) {
         state.seat.keyboards.retain(|kb| kb != keyboard_resource);
+    }
+}
+
+impl GlobalDispatch<ZwpRelativePointerManagerV1, ()> for WLCState {
+    fn bind(
+        _state: &mut Self,
+        _handle: &DisplayHandle,
+        _client: &Client,
+        resource: New<ZwpRelativePointerManagerV1>,
+        _data: &(),
+        data_init: &mut DataInit<'_, Self>,
+    ) {
+        data_init.init(resource, ());
+    }
+}
+
+impl Dispatch<ZwpRelativePointerManagerV1, ()> for WLCState {
+    fn request(
+        _state: &mut Self,
+        _client: &Client,
+        _manager_resource: &ZwpRelativePointerManagerV1,
+        request: zwp_rpm::Request,
+        _data: &(),
+        _disp: &DisplayHandle,
+        data_init: &mut DataInit<'_, Self>,
+    ) {
+        match request {
+            zwp_rpm::Request::Destroy => {},
+            zwp_rpm::Request::GetRelativePointer { id, pointer } => {
+                let relative_pointer = data_init.init(id, ());
+
+                with_pointer_data(&pointer, |data| {
+                    data.relative_pointer = Some(relative_pointer);
+                });
+            },
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Dispatch<ZwpRelativePointerV1, ()> for WLCState {
+    fn request(
+        _state: &mut Self,
+        _client: &Client,
+        _relpointer_resource: &ZwpRelativePointerV1,
+        request: zwp_relpointer::Request,
+        _data: &(),
+        _disp: &DisplayHandle,
+        _data_init: &mut DataInit<'_, Self>,
+    ) {
+        match request {
+            zwp_relpointer::Request::Destroy => {},
+            _ => unreachable!(),
+        }
+    }
+
+    fn destroyed(
+        state: &mut Self,
+        _client: ClientId,
+        relpointer_resource: &ZwpRelativePointerV1,
+        _data: &(),
+    ) {
+        state.seat.for_all_pointers(|_pointer, data| {
+            if data.relative_pointer == Some(relpointer_resource.clone()) {
+                data.relative_pointer = None;
+            }
+        });
     }
 }
