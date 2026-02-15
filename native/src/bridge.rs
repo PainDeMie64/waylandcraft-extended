@@ -38,7 +38,7 @@ use smithay::{
     },
 };
 use jni::{
-    objects::{JClass, JObject, JValue},
+    objects::{JClass, JObject, JValue, JString},
     sys::{
         jlong, jstring, jarray, jsize, jint, jvalue, jdouble, jboolean, jobject,
         jbyte, JNI_TRUE
@@ -1256,4 +1256,62 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_freePopup<'l>(
 ) {
     let instance = jptr_to_instance(ptr);
     remove_element(&mut instance.bridge.popups, handle);
+}
+
+#[unsafe(no_mangle)]
+pub extern "system"
+fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_resolveName<'l>(
+    env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong,
+    app_id: jstring
+) -> jstring {
+    let instance = jptr_to_instance(handle);
+
+    let app_id: Option<String> = unsafe {
+        env.get_string_unchecked(&JString::from_raw(app_id))
+            .ok()
+            .map(|s| s.into())
+    };
+
+    let app_id = match app_id {
+        Some(id) => id,
+        None => {return std::ptr::null_mut();},
+    };
+
+    let name = instance.xdg.resolve_name(&app_id);
+    match name {
+        Some(n) => env.new_string(n).unwrap().into_raw(),
+        None => std::ptr::null_mut(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system"
+fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_resolveIconPath<'l>(
+    env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong,
+    app_id: jstring
+) -> jstring {
+    let instance = jptr_to_instance(handle);
+
+    let app_id: Option<String> = unsafe {
+        env.get_string_unchecked(&JString::from_raw(app_id))
+            .ok()
+            .map(|s| s.into())
+    };
+
+    let app_id = match app_id {
+        Some(id) => id,
+        None => {return std::ptr::null_mut();},
+    };
+
+    let path: Option<String> = instance.xdg.resolve_icon_path(&app_id)
+        .and_then(|p| p.to_str().map(|s| s.into()));
+
+    match path {
+        Some(p) => env.new_string(p).unwrap().into_raw(),
+        None => std::ptr::null_mut(),
+    }
 }

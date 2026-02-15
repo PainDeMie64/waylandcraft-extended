@@ -12,3 +12,5 @@ smithay = { version = "0.7.0", default-features = false, features = [ "wayland_f
 jni = "0.21.1"
 libc = { version = "0.2.176", default-features = false }
 xkbcommon = "0.8.0"
+cosmic-freedesktop-icons = { git = "https://github.com/pop-os/freedesktop-icons.git", rev = "7a61a70" }
+freedesktop-desktop-entry = "0.8.1"

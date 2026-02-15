@@ -2,6 +2,7 @@ use crate::bridge::BridgeState;
 use crate::egl::EGLHelper;
 use crate::seat::WLCSeatState;
 use crate::ddm::WLCDataState;
+use crate::xdg_spec::XDGSpecHelper;
 use std::sync::Arc;
 use std::ops::DerefMut;
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
@@ -64,12 +65,14 @@ mod bridge;
 mod egl;
 mod seat;
 mod ddm;
+mod xdg_spec;
 
 pub(crate) struct WaylandCraft<'a> {
     pub state: WLCState,
     pub event_loop: EventLoop<'a, WLCState>,
     pub bridge: BridgeState,
     pub egl: EGLHelper,
+    pub xdg: XDGSpecHelper,
 }
 
 pub struct WLCState {
@@ -343,11 +346,14 @@ pub(crate) fn wlc_init(
         Ok(calloop::PostAction::Continue)
     }).unwrap();
 
+    let xdg = XDGSpecHelper::init();
+
     let instance = WaylandCraft {
         state,
         event_loop,
         bridge: BridgeState::new(),
         egl,
+        xdg,
     };
     Ok(instance)
 }

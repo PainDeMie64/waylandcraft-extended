@@ -393,6 +393,14 @@ public class WaylandCraftBridge {
 		toplevelFullscreen(toplevel.getHandle());
 	}
 	
+	public String resolveName(String appID) {
+		return resolveName(instance, appID);
+	}
+	
+	public String resolveIconPath(String appID) {
+		return resolveIconPath(instance, appID);
+	}
+	
 	private static native long init(long glfwGetProcAddress, long eglDisplay);
 	private static native void update(long instance);
 	private static native String socket(long instance);
@@ -476,5 +484,8 @@ public class WaylandCraftBridge {
 	private static native void freeSurface(long instance, long handle);
 	private static native void freeToplevel(long instance, long handle);
 	private static native void freePopup(long instance, long handle);
+	
+	private static native String resolveName(long instance, String appID);
+	private static native String resolveIconPath(long instance, String appID);
 	
 }

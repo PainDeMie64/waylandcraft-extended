@@ -12,7 +12,6 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 
 import dev.evvie.waylandcraft.WindowDisplay.DisplayHitResult;
-import dev.evvie.waylandcraft.XDGDesktopManager.IconData;
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow;
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow.SurfaceGeometry;
 import dev.evvie.waylandcraft.bridge.WLCPopup;
@@ -221,12 +220,12 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 				context.drawString(font, Component.literal(name).withStyle(style), x, yoff, color.getRGB(), true);
 				
 				if(appID != null) {
-					IconData icon = xdgManager.getIcon(appID);
+					BufferTexture icon = xdgManager.getIcon(appID);
 					int iconX = x - font.lineHeight - 2;
 					int iconY = yoff;
 					int iconW = font.lineHeight;
 					int iconH = font.lineHeight;
-					if(icon != null) RenderUtils.blitGUI(context, icon.texture.id, iconX, iconY, iconX + iconW, iconY + iconH);
+					if(icon != null) RenderUtils.blitGUI(context, icon.id, iconX, iconY, iconX + iconW, iconY + iconH);
 				}
 				
 				yoff += ystep;

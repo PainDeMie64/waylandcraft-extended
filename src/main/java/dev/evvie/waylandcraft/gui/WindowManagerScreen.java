@@ -12,7 +12,6 @@ import dev.evvie.waylandcraft.BufferTexture;
 import dev.evvie.waylandcraft.RenderUtils;
 import dev.evvie.waylandcraft.WaylandCraft;
 import dev.evvie.waylandcraft.WindowFramebuffer;
-import dev.evvie.waylandcraft.XDGDesktopManager.IconData;
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow;
 import dev.evvie.waylandcraft.bridge.WLCPopup;
 import dev.evvie.waylandcraft.bridge.WLCSurface;
@@ -83,10 +82,10 @@ public class WindowManagerScreen extends Screen {
 				String appID = element.appID;
 				if(appID == null) return null;
 				
-				IconData icon = wlc.xdgManager.getIcon(appID);
+				BufferTexture icon = wlc.xdgManager.getIcon(appID);
 				if(icon == null) return null;
 				
-				return icon.texture;
+				return icon;
 			}
 		};
 		addRenderableWidget(selector);
