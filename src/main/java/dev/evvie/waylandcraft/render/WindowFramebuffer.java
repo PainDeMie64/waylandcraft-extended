@@ -17,7 +17,11 @@ import net.minecraft.resources.ResourceLocation;
 public class WindowFramebuffer {
 	
 	private static int SHADER = -1;
+	private static int SHADER_OPAQUE = -1;
+	private static boolean shadersCompiled = false;
+	
 	private static ResourceLocation SHADER_FRAG_LOC = new ResourceLocation(WaylandCraft.MOD_ID, "shaders/window.fsh");
+	private static ResourceLocation SHADER_FRAG_OPAQUE_LOC = new ResourceLocation(WaylandCraft.MOD_ID, "shaders/window_opaque.fsh");
 	private static ResourceLocation SHADER_VERT_LOC = new ResourceLocation(WaylandCraft.MOD_ID, "shaders/window.vsh");
 	
 	public final WLCAbstractWindow window;
@@ -40,7 +44,7 @@ public class WindowFramebuffer {
 	}
 	
 	private void init() {
-		ensureShaderCompiled();
+		ensureShadersCompiled();
 		updateDimensions();
 		render();
 	}
@@ -183,12 +187,16 @@ public class WindowFramebuffer {
 		GL33.nglVertexAttribPointer(0, 2, GL33.GL_FLOAT, false, 4 * Float.BYTES, 0);
 		GL33.nglVertexAttribPointer(1, 2, GL33.GL_FLOAT, false, 4 * Float.BYTES, 2 * Float.BYTES);
 		
-		GL33.glUseProgram(SHADER);
-		GL33.glUniformMatrix4fv(GL33.glGetUniformLocation(SHADER, "transform"), false, mat.get(new float[16]));
+		int shader = buf.format == BufferTexture.FORMAT_XRGB8888 ? SHADER_OPAQUE : SHADER;
+		
+		// Note: Both shaders use same uniforms
+		
+		GL33.glUseProgram(shader);
+		GL33.glUniformMatrix4fv(GL33.glGetUniformLocation(shader, "transform"), false, mat.get(new float[16]));
 		
 		GL33.glActiveTexture(GL33.GL_TEXTURE1);
 		GL33.glBindTexture(GL33.GL_TEXTURE_2D, buf.id);
-		GL33.glUniform1i(GL33.glGetUniformLocation(SHADER, "tex"), 1);
+		GL33.glUniform1i(GL33.glGetUniformLocation(shader, "tex"), 1);
 		GL33.glActiveTexture(GL33.GL_TEXTURE0);
 		
 		GL33.glDrawArrays(GL33.GL_TRIANGLES, 0, 6);
@@ -222,10 +230,11 @@ public class WindowFramebuffer {
 		return width > 0 && height > 0;
 	}
 	
-	private static void ensureShaderCompiled() {
-		if(SHADER == -1) {
+	private static void ensureShadersCompiled() {
+		if(!shadersCompiled) {
 			try {
-				compileShader();
+				compileShaders();
+				shadersCompiled = true;
 			} catch (IOException e) {
 				e.printStackTrace();
 				throw new IllegalStateException("Failed to compile shader: IOException");
@@ -233,7 +242,7 @@ public class WindowFramebuffer {
 		}
 	}
 	
-	private static void compileShader() throws IOException {
+	private static void compileShaders() throws IOException {
 		InputStream vertIn = Minecraft.getInstance().getResourceManager().getResource(SHADER_VERT_LOC).get().open();
 		String vertCode = new String(vertIn.readAllBytes(), StandardCharsets.UTF_8);
 		vertIn.close();
@@ -242,7 +251,12 @@ public class WindowFramebuffer {
 		String fragCode = new String(fragIn.readAllBytes(), StandardCharsets.UTF_8);
 		fragIn.close();
 		
+		InputStream fragOpaqueIn = Minecraft.getInstance().getResourceManager().getResource(SHADER_FRAG_OPAQUE_LOC).get().open();
+		String fragOpaqueCode = new String(fragOpaqueIn.readAllBytes(), StandardCharsets.UTF_8);
+		fragOpaqueIn.close();
+		
 		SHADER = compileShaderProgram(vertCode, fragCode);
+		SHADER_OPAQUE = compileShaderProgram(vertCode, fragOpaqueCode);
 	}
 	
 	private static int compileVertexShader(String code) {
