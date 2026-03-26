@@ -390,9 +390,11 @@ const WLCSurface_class: &str = "dev/evvie/waylandcraft/bridge/WLCSurface";
 const WaylandCraftBridge_class: &str =
     "dev/evvie/waylandcraft/bridge/WaylandCraftBridge";
 
-fn jptr_to_wlsurface(ptr: jlong) -> &'static mut WlSurface {
+fn jptr_to_wlsurface(ptr: jlong) -> Option<WlSurface> {
+    if ptr == 0 { return None }
     let ptr: *mut WlSurface = (ptr as usize) as *mut WlSurface;
-    unsafe { &mut *ptr }
+    let r = unsafe { &mut *ptr };
+    Some(r.clone())
 }
 
 enum BufferAttachResult {
@@ -562,8 +564,12 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_updateSurfaceData<'l>(
         ReturnType::Primitive(Primitive::Long)
     ).unwrap().j().unwrap();
 
-    let surface = jptr_to_wlsurface(handle);
-    with_states(surface, |data| {
+    let surface = match jptr_to_wlsurface(handle) {
+        Some(s) => s,
+        None => { return },
+    };
+
+    with_states(&surface, |data| {
         let mut attr_guard = data
             .cached_state
             .get::<SurfaceAttributes>();
@@ -789,12 +795,13 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_updateSurfaceTree<'l>(
         ReturnType::Primitive(Primitive::Long)
     ).unwrap().j().unwrap();
 
-    let surface = jptr_to_wlsurface(handle);
+    let surface = jptr_to_wlsurface(handle)
+        .expect("updateSurfaceTree surface alive");
 
     let mut last_child: JObject = JObject::null();
 
     with_surface_tree_upward(
-        surface,
+        &surface,
         None,
         |surface, _data, _parent| {
             TraversalAction::DoChildren(Some(surface.clone()))
@@ -920,7 +927,7 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_pointerMotionFocus<'l>(
     let instance = jptr_to_instance(ptr);
     let surface = jptr_to_wlsurface(handle);
 
-    instance.state.seat.pointer_motion_focus(Some(surface.clone()), x, y);
+    instance.state.seat.pointer_motion_focus(surface, x, y);
 }
 
 #[unsafe(no_mangle)]
@@ -946,7 +953,10 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_maybePointerLock<'l>(
     handle: jlong
 ) -> jboolean {
     let instance = jptr_to_instance(ptr);
-    let surface = jptr_to_wlsurface(handle);
+    let surface = match jptr_to_wlsurface(handle) {
+        Some(s) => s,
+        None => { return 0 }
+    };
 
     instance.state.seat.pointer_lock(&surface) as jboolean
 }
@@ -1269,10 +1279,14 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_checkInputRegion<'l>(
     x: jdouble,
     y: jdouble
 ) -> jboolean {
-    let surface = jptr_to_wlsurface(handle);
+    let surface = match jptr_to_wlsurface(handle) {
+        Some(s) => s,
+        None => { return 0 },
+    };
+
     let point: Point<f64, Logical> = Point::new(x, y);
 
-    with_states(surface, |data| {
+    with_states(&surface, |data| {
         let mut attr_guard = data
             .cached_state
             .get::<SurfaceAttributes>();
@@ -1294,7 +1308,10 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_surfaceXDGGeometry<'l>(
     _class: JClass<'l>,
     handle: jlong
 ) -> jarray {
-    let surface = jptr_to_wlsurface(handle);
+    let surface = match jptr_to_wlsurface(handle) {
+        Some(s) => s,
+        None => { return std::ptr::null_mut() }
+    };
 
     let geometry: Option<[jint; 4]> = with_states(&surface, |states| {
         let mut guard = states.cached_state.get::<SurfaceCachedState>();
