@@ -1658,3 +1658,22 @@ fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_renderSVG<'l>(
 
     render_svg(path, width, height, data).is_some() as jboolean
 }
+
+#[unsafe(no_mangle)]
+pub extern "system"
+fn Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_execApp<'l>(
+    env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong,
+    app_id: JString<'l>,
+) -> jboolean {
+    let instance = jptr_to_instance(ptr);
+    let app_id: String = unsafe {
+        env.get_string_unchecked(&app_id).unwrap()
+    }.into();
+
+    let env_vars = vec![
+        ("WAYLAND_DISPLAY".into(), instance.state.socket.clone())
+    ];
+    instance.xdg.exec_app(app_id, env_vars) as jboolean
+}

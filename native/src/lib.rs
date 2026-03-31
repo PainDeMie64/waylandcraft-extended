@@ -65,6 +65,7 @@ mod ddm;
 mod xdg_spec;
 mod output;
 mod svg;
+mod process;
 
 pub(crate) struct WaylandCraft<'a> {
     pub state: WLCState,

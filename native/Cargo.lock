@@ -1523,6 +1523,7 @@ dependencies = [
  "jni",
  "libc",
  "resvg",
+ "shlex",
  "smithay",
  "xkbcommon 0.8.0",
 ]

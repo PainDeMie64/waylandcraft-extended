@@ -53,6 +53,7 @@ public class AppLauncherScreen extends Screen {
 	}
 	
 	public void launch(DesktopEntry entry) {
+		wlc.bridge.execApp(entry.appId);
 		this.onClose();
 	}
 	

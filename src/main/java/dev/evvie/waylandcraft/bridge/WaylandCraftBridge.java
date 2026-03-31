@@ -489,6 +489,10 @@ public class WaylandCraftBridge {
 		return renderSVG(file.getAbsolutePath(), width, height, ptr);
 	}
 	
+	public boolean execApp(String appId) {
+		return execApp(instance, appId);
+	}
+	
 	public static record Size(int width, int height) {}
 	
 	public static record ResizeRequest(int serial, int edges) {}
@@ -609,5 +613,7 @@ public class WaylandCraftBridge {
 	private static native RawDesktopEntry[] loadDesktopEntries(long instance);
 	
 	private static native boolean renderSVG(String path, int width, int height, long ptr);
+	
+	private static native boolean execApp(long instance, String appId);
 	
 }

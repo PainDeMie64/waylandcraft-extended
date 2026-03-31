@@ -1,7 +1,10 @@
+use crate::process::spawn;
+use std::ffi::OsString;
 use std::path::PathBuf;
 use freedesktop_desktop_entry::{
+    unicase::Ascii,
     DesktopEntry,
-    get_languages_from_env, desktop_entries,
+    get_languages_from_env, desktop_entries, find_app_by_id
 };
 use cosmic_freedesktop_icons::lookup;
 
@@ -87,4 +90,82 @@ impl XDGSpecHelper {
         // Fallback to any icon paths
         lookup(icon).find()
     }
+
+    pub fn exec_app(&self, app_id: String, env: Vec<(OsString, OsString)>)
+        -> bool
+    {
+        self._exec_app(app_id, env).is_some()
+    }
+
+    fn _exec_app(&self, app_id: String, env: Vec<(OsString, OsString)>)
+        -> Option<()>
+    {
+        let entry = find_app_by_id(&self.entries, Ascii::new(&app_id))?;
+        let exec = entry.exec()?;
+        let mut args = split_exec(&exec).ok()?;
+
+        if args.len() < 1 { return None }
+
+        let cmd = args.remove(0);
+        spawn(cmd, args, env).ok()?;
+
+        Some(())
+    }
+}
+
+fn split_exec(exec: &str) -> Result<Vec<String>, ()> {
+    let parts = shlex::split(exec).ok_or(())?;
+    let mut uparts = vec![];
+    for part in parts {
+        match unpercent(&part)? {
+            Some(p) => uparts.push(p),
+            None => {}
+        }
+    }
+    Ok(uparts)
+}
+
+// Undo percent sign escaping and check for field codes
+// This implementation is strict. A properly formatted argument may either be
+// a single field code by itself or a normal argument with properly escaped
+// percent signs.
+fn unpercent(arg: &str) -> Result<Option<String>, ()> {
+    // Check if argument is a field code like %f
+    let mut iter = arg.chars();
+    if arg.len() >= 2
+        && iter.next() == Some('%')
+        && iter.next().is_some_and(|c| c.is_ascii_alphabetic())
+    {
+        if arg.len() > 2 {
+            // Not a normal field code if longer than a single percent sign
+            // and single ascii alphabetic character.
+            return Err(());
+        }
+        // Correct field code
+        return Ok(None);
+    }
+
+    // Field codes handled, now assemble output while checking for properly
+    // escaped percent signs.
+    let mut output = String::new();
+    let mut iter = arg.chars();
+    while let Some(c) = iter.next() {
+        if c == '%' {
+            // Next character has to follow, otherwise error
+            let c2 = match iter.next() {
+                Some(a) => a,
+                None => return Err(()),
+            };
+            if c2 == '%' {
+                output.push('%');
+            } else {
+                return Err(());
+            }
+        } else {
+            // Normal character
+            output.push(c);
+        }
+    }
+
+    Ok(Some(output))
 }
