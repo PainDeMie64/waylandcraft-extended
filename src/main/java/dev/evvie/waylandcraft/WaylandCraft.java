@@ -134,7 +134,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	public void renderWorld(Camera camera) {
 		if(bridge == null) return;
 		
-		for(WLCPopup popup : bridge.getPopups()) {
+		for(WLCPopup popup : bridge.getMappedPopups()) {
 			WLCAbstractWindow root = popup;
 			while((root = ((WLCPopup) root).getParent()) instanceof WLCPopup);
 			
@@ -152,7 +152,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		displays.removeIf((d) -> !d.isValid());
 		displays.forEach((d) -> d.updateGeometry());
 		
-		for(WLCPopup popup : bridge.getPopups()) {
+		for(WLCPopup popup : bridge.getMappedPopups()) {
 			anchorToParent(popup);
 		}
 		
@@ -232,7 +232,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	
 	private void onClientJoin(ClientPacketListener listener, PacketSender sender, Minecraft minecraft) {
 		minecraft.player.sendSystemMessage(Component.literal("Wayland compositor running on " + waylandSocket));
-		itemManager.giveItemsIfMissing(bridge.getToplevels());
+		itemManager.giveItemsIfMissing(bridge.getMappedToplevels());
 	}
 	
 	private void updateDisplayRequests() {
@@ -241,7 +241,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		Stream.of(bridge.getToplevels()).forEach((t) -> t.requests.minimize = false);
 		
 		// Handle any maximize or unmaximize requests
-		for(WLCToplevel toplevel : bridge.getToplevels()) {
+		for(WLCToplevel toplevel : bridge.getMappedToplevels()) {
 			if(toplevel.requests.maximize && toplevel.requests.unmaximize) {
 				// Both requests shouldn't happen at the same time
 				toplevel.restoreGeometry = null;

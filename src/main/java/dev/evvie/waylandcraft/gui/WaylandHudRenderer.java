@@ -50,7 +50,7 @@ public class WaylandHudRenderer {
 			yoff += ystep;
 		}
 		
-		for(WLCToplevel toplevel : WaylandCraft.instance.bridge.getToplevels()) {
+		for(WLCToplevel toplevel : WaylandCraft.instance.bridge.getMappedToplevels()) {
 			String appID = toplevel.appID;
 			DesktopEntry entry = wlc.xdgManager.forAppId(appID);
 			

@@ -229,7 +229,7 @@ public class WindowManagerScreen extends Screen {
 		guiScale = (int) Minecraft.getInstance().getWindow().getGuiScale();
 		wlc.bridge.setOutputBounds(areaWidth * guiScale, areaHeight * guiScale);
 		
-		WLCToplevel[] toplevels = wlc.bridge.getToplevels();
+		WLCToplevel[] toplevels = wlc.bridge.getMappedToplevels();
 		selector.setEntries(toplevels);
 		
 		if(resizeMode && !resizeToplevel.isAlive()) {
@@ -604,7 +604,7 @@ public class WindowManagerScreen extends Screen {
 		public static WindowTree constructTree(WaylandCraftBridge bridge, WLCToplevel toplevel) {
 			WindowTree tree = new WindowTree(toplevel);
 			
-			for(WLCPopup popup : bridge.getPopups()) {
+			for(WLCPopup popup : bridge.getMappedPopups()) {
 				WLCAbstractWindow root;
 				for(root = popup; !(root instanceof WLCToplevel); root = ((WLCPopup) root).getParent()) {}
 				if(root != toplevel) continue;

@@ -38,6 +38,10 @@ public class WindowItemManager {
 		for(int i = 0; i < toplevels.length; i++) giveItemIfMissing(toplevels[i]);
 	}
 	
+	private boolean isToplevelValid(WLCToplevel toplevel) {
+		return toplevel != null && toplevel.isMapped();
+	}
+	
 	public void onServerTick(ServerLevel level) {
 		if(wlc.bridge == null) return;
 		if(level.players().size() < 1) return;
@@ -70,11 +74,12 @@ public class WindowItemManager {
 			
 			for(int i = 0; i < inv.getContainerSize(); i++) {
 				ItemStack item = inv.getItem(i);
-				
 				if(!item.is(WindowItem.WINDOW)) continue;
-				if(WindowItem.getToplevel(item) != null) continue;
 				
-				inv.setItem(i, ItemStack.EMPTY);
+				WLCToplevel toplevel = WindowItem.getToplevel(item);
+				if(!isToplevelValid(toplevel)) {
+					inv.setItem(i, ItemStack.EMPTY);
+				}
 			}
 		});
 		
@@ -85,7 +90,7 @@ public class WindowItemManager {
 				.filter((e) -> e instanceof ItemEntity)
 				.map((e) -> (ItemEntity) e)
 				.filter((e) -> e.getItem().is(WindowItem.WINDOW))
-				.filter((e) -> WindowItem.getToplevel(e.getItem()) == null)
+				.filter((e) -> !isToplevelValid(WindowItem.getToplevel(e.getItem())))
 				.filter((e) -> e.getAge() > 10)
 				.forEach((e) -> {
 					for(int i = 0; i < 10; i++) {

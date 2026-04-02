@@ -58,7 +58,6 @@ public class WaylandCraftBridge {
 			if(toplevel.getHandle() == handle) return toplevel;
 		}
 		WLCToplevel toplevel = new WLCToplevel(handle);
-		newToplevels.add(toplevel);
 		
 		long surfaceHandle = toplevelSurface(this.instance, handle);
 		WLCSurface surface = getOrCreateSurface(surfaceHandle);
@@ -275,6 +274,14 @@ public class WaylandCraftBridge {
 			}
 		}
 		
+		for(WLCToplevel toplevel : toplevels) {
+			boolean mapped = toplevel.isMapped();
+			if(mapped && !toplevel.wasMapped) {
+				newToplevels.add(toplevel);
+			}
+			toplevel.wasMapped = mapped;
+		}
+		
 		// Render windows
 		for(WLCAbstractWindow window : allWindows) {
 			if(window.framebuffer != null) window.framebuffer.freeTexture();
@@ -319,12 +326,20 @@ public class WaylandCraftBridge {
 		return toplevels.toArray(new WLCToplevel[toplevels.size()]);
 	}
 	
+	public WLCToplevel[] getMappedToplevels() {
+		return toplevels.stream().filter((t) -> t.isMapped()).toArray(WLCToplevel[]::new);
+	}
+	
 	public WLCToplevel getToplevel(long handle) {
 		return toplevels.stream().filter((w) -> w.getHandle() == handle).findAny().orElse(null);
 	}
 	
 	public WLCPopup[] getPopups() {
 		return popups.toArray(new WLCPopup[popups.size()]);
+	}
+	
+	public WLCPopup[] getMappedPopups() {
+		return popups.stream().filter((t) -> t.isMapped()).toArray(WLCPopup[]::new);
 	}
 	
 	public String getSocket() {
