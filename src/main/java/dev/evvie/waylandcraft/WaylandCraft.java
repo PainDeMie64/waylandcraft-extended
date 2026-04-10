@@ -95,7 +95,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	
 	public boolean playerUsingWindowItem = false;
 	
-	public int cursorShape = 0;
+	public int cursorShape = -1;
 	
 	@Override
 	public void onInitialize() {
@@ -348,13 +348,15 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	}
 	
 	private void processPointerMotion(Camera camera) {
-		cursorShape = 0;
+		this.cursorShape = -1;
 		
 		if(pointerCapture != null) {
 			if(!pointerCapture.surface.isAlive()) {
 				pointerCapture = null;
 				return;
 			}
+			
+			this.cursorShape = bridge.getCursorShape();
 			
 			if(!bridge.maybeLockPointer(pointerCapture.surface)) {
 				disablePointerCapture();
@@ -428,11 +430,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			WLCSurface surface = hoveredDisplay.surface;
 			Vec3 rel = hoveredDisplay.surfaceLocalRelative;
 			
-			int shape = bridge.takeCursorShape();
-			if(shape != 0) hoveredDisplay.target.cursorShape = shape;
-			
-			cursorShape = hoveredDisplay.target.cursorShape;
-			
+			this.cursorShape = bridge.getCursorShape();
 			bridge.sendMotionRefocus(surface, rel.x, rel.y);
 			
 			if(keyboardCaptureMode != KeyboardCaptureMode.NONE && bridge.maybeLockPointer(surface)) {

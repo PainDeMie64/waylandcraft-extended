@@ -22,6 +22,7 @@ public class GuiMixin {
 		ResourceLocation crosshair = original;
 		
 		switch(WaylandCraft.instance.cursorShape) {
+		case 0: return; // hide cursor
 		case 18: crosshair = LEFT_RIGHT_CROSSHAIR; break; // e_resize
 		case 19: crosshair = TOP_BOTTOM_CROSSHAIR; break; // n_resize
 		case 20: crosshair = TRBL_DIAGONAL_CROSSHAIR; break; // ne_resize

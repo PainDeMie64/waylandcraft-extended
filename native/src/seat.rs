@@ -58,6 +58,8 @@ pub struct WLCPointerData {
     // WlSurface holding pointer focus
     // This surface has to be of the same client as the WlPointer
     focus: Option<WlSurface>,
+    // Value of current pointer focus enter serial
+    last_enter: Option<u32>,
     // Value of last motion event wl_fixed
     last_motion: Option<(i32, i32)>,
     // Relative pointer objects
@@ -69,6 +71,12 @@ pub struct WLCPointerData {
 }
 
 type WLCPointer = Arc<Mutex<WLCPointerData>>;
+
+pub struct WLCCursorShapeDeviceData {
+    pointer: Option<WlPointer>,
+}
+
+type WLCCursorShapeDevice = Arc<Mutex<WLCCursorShapeDeviceData>>;
 
 pub struct WLCPointerLock {
     locked_pointer: ZwpLockedPointerV1,
@@ -99,6 +107,21 @@ fn with_pointer_data<F, R>(pointer: &WlPointer, f: F) -> R
 {
     let mut guard = pointer
         .data::<WLCPointer>()
+        .unwrap()
+        .lock()
+        .unwrap();
+    let data = guard.deref_mut();
+    f(data)
+}
+
+fn with_cursor_shape_device_data<F, R>(
+    device: &WpCursorShapeDeviceV1,
+    f: F
+) -> R
+    where F: FnOnce(&mut WLCCursorShapeDeviceData) -> R
+{
+    let mut guard = device
+        .data::<WLCCursorShapeDevice>()
         .unwrap()
         .lock()
         .unwrap();
@@ -205,6 +228,7 @@ impl WLCSeatState {
                 pointer.leave(serial, focus);
                 self.pointer_frame(pointer);
                 data.focus = None;
+                data.last_enter = None;
                 data.last_motion = None;
             }
         });
@@ -226,6 +250,7 @@ impl WLCSeatState {
             pointer.enter(serial, surface, x, y);
             self.pointer_frame(pointer);
             data.focus = Some(surface.clone());
+            data.last_enter = Some(serial);
             data.last_motion = None;
         });
     }
@@ -582,6 +607,7 @@ impl Dispatch<WlSeat, ()> for WLCState {
             wl_seat::Request::GetPointer { id } => {
                 let pointer_data = WLCPointerData {
                     focus: None,
+                    last_enter: None,
                     last_motion: None,
                     relative_pointers: vec![],
                     lock: None,
@@ -626,16 +652,33 @@ impl Dispatch<WlSeat, ()> for WLCState {
 
 impl Dispatch<WlPointer, WLCPointer> for WLCState {
     fn request(
-        _state: &mut Self,
+        state: &mut Self,
         _client: &Client,
-        _pointer_resource: &WlPointer,
+        pointer: &WlPointer,
         request: wl_pointer::Request,
         _data: &WLCPointer,
         _disp: &DisplayHandle,
         _data_init: &mut DataInit<'_, Self>,
     ) {
         match request {
-            wl_pointer::Request::SetCursor { .. } => {},
+            wl_pointer::Request::SetCursor { serial, surface, .. } => {
+                let last_enter = with_pointer_data(pointer, |data| {
+                    data.last_enter
+                });
+                if last_enter.is_none() { return }
+                if last_enter.unwrap() != serial { return }
+
+                if surface.is_none() {
+                    // Attaching an empty surface to hide cursor
+                    // Zero value (not defined in protocol) means hidden here.
+                    state.seat.cursor_shape = Some(0);
+                } else {
+                    // When an image is attached instead of a shape, reset to
+                    // default because this compositor doesn't implement normal
+                    // surface-based cursors, only cursor-shape.
+                    state.seat.cursor_shape = None;
+                }
+            },
             wl_pointer::Request::Release => {},
             _ => unreachable!(),
         }
@@ -917,35 +960,56 @@ impl Dispatch<WpCursorShapeManagerV1, ()> for WLCState {
         match request {
             wp_cursor_shape_manager_v1::Request::Destroy => {},
             wp_cursor_shape_manager_v1::Request::GetPointer {
-                cursor_shape_device, ..
+                cursor_shape_device, pointer
             } => {
-                data_init.init(cursor_shape_device, ());
+                let device_data = WLCCursorShapeDeviceData {
+                    pointer: Some(pointer),
+                };
+                let device_data = Arc::new(Mutex::new(device_data));
+                data_init.init(cursor_shape_device, device_data);
             },
             wp_cursor_shape_manager_v1::Request::GetTabletToolV2 {
                 cursor_shape_device, ..
             } => {
-                data_init.init(cursor_shape_device, ());
+                let device_data = WLCCursorShapeDeviceData {
+                    pointer: None,
+                };
+                let device_data = Arc::new(Mutex::new(device_data));
+                data_init.init(cursor_shape_device, device_data);
             },
             _ => unreachable!(),
         }
     }
 }
 
-impl Dispatch<WpCursorShapeDeviceV1, ()> for WLCState {
+impl Dispatch<WpCursorShapeDeviceV1, WLCCursorShapeDevice> for WLCState {
     fn request(
         state: &mut Self,
         _client: &Client,
-        _resource: &WpCursorShapeDeviceV1,
+        device: &WpCursorShapeDeviceV1,
         request: wp_cursor_shape_device_v1::Request,
-        _data: &(),
+        _data: &WLCCursorShapeDevice,
         _disp: &DisplayHandle,
         _data_init: &mut DataInit<'_, Self>,
     ) {
         match request {
             wp_cursor_shape_device_v1::Request::Destroy => {},
             wp_cursor_shape_device_v1::Request::SetShape {
-                shape, ..
+                shape, serial
             } => {
+                let pointer = with_cursor_shape_device_data(device, |data| {
+                    data.pointer.clone()
+                });
+
+                if pointer.is_none() { return } // No tablet support
+                let pointer = pointer.unwrap();
+
+                let last_enter = with_pointer_data(&pointer, |data| {
+                    data.last_enter
+                });
+                if last_enter.is_none() { return }
+                if last_enter.unwrap() != serial { return }
+
                 state.seat.cursor_shape = Some(shape.into());
             },
             _ => unreachable!(),

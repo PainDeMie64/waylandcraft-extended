@@ -382,7 +382,7 @@ public class WaylandCraftBridge {
 		pointerAxis(instance, axis, value);
 	}
 	
-	public int takeCursorShape() {
+	public int getCursorShape() {
 		return cursorShape(instance);
 	}
 	
