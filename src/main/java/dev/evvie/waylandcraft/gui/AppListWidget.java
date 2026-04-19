@@ -10,6 +10,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractContainerWidget;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
@@ -128,8 +129,8 @@ public class AppListWidget extends AbstractContainerWidget {
 			scrollerPos = 0;
 		}
 		
-		context.blitSprite(SCROLLER_BACKGROUND_SPRITE, scrollerX, scrollerY, scrollerWidth, scrollerHeight);
-		context.blitSprite(SCROLLER_SPRITE, scrollerX, scrollerY + scrollerPos, scrollerWidth, scrollerSize);
+		context.blitSprite(RenderType::guiTextured, SCROLLER_BACKGROUND_SPRITE, scrollerX, scrollerY, scrollerWidth, scrollerHeight);
+		context.blitSprite(RenderType::guiTextured, SCROLLER_SPRITE, scrollerX, scrollerY + scrollerPos, scrollerWidth, scrollerSize);
 	}
 	
 	@Override
@@ -173,6 +174,16 @@ public class AppListWidget extends AbstractContainerWidget {
 	@Override
 	public List<? extends GuiEventListener> children() {
 		return children;
+	}
+
+	@Override
+	protected int contentHeight() {
+		return 0;
+	}
+
+	@Override
+	protected double scrollRate() {
+		return 0;
 	}
 	
 }

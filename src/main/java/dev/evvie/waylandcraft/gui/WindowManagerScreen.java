@@ -222,7 +222,7 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public void render(GuiGraphics context, int i, int j, float f) {
-		super.renderBlurredBackground(f);
+		super.renderBlurredBackground();
 		
 		context.renderOutline(leftMargin - 1, topMargin - 1, areaWidth + 2, areaHeight + 2, Color.white.getRGB());
 		

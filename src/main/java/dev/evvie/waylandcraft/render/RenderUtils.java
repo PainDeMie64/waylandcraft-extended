@@ -1,35 +1,31 @@
 package dev.evvie.waylandcraft.render;
 
 import java.awt.Color;
-import java.io.IOException;
 import java.util.function.Function;
 
-import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.PoseStack.Pose;
-import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat.Mode;
 import com.mojang.math.Axis;
 
 import dev.evvie.waylandcraft.WaylandCraft;
-import net.fabricmc.fabric.api.client.rendering.v1.CoreShaderRegistrationCallback;
 import net.minecraft.Util;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.CoreShaders;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource.BufferSource;
 import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.client.renderer.ShaderDefines;
+import net.minecraft.client.renderer.ShaderProgram;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec2;
@@ -37,48 +33,18 @@ import net.minecraft.world.phys.Vec3;
 
 public class RenderUtils {
 	
-	private static ShaderInstance RENDERTYPE_WINDOW;
-	private static ShaderInstance RENDERTYPE_WINDOW_CUTOUT;
-	private static ShaderInstance RENDERTYPE_WINDOW_COLORLESS;
-	private static ShaderInstance RENDERTYPE_WINDOW_COLORLESS_CUTOUT;
-	private static ShaderInstance POSITION_TEX_TRANSLUCENT;
+	public static final ShaderProgram RENDERTYPE_WINDOW = new ShaderProgram(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "core/rendertype_window"), DefaultVertexFormat.NEW_ENTITY, ShaderDefines.EMPTY);
+	public static final ShaderProgram RENDERTYPE_WINDOW_CUTOUT = new ShaderProgram(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "core/rendertype_window_cutout"), DefaultVertexFormat.NEW_ENTITY, ShaderDefines.EMPTY);
+	public static final ShaderProgram RENDERTYPE_WINDOW_COLORLESS = new ShaderProgram(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "core/rendertype_window_colorless"), DefaultVertexFormat.NEW_ENTITY, ShaderDefines.EMPTY);
+	public static final ShaderProgram RENDERTYPE_WINDOW_COLORLESS_CUTOUT = new ShaderProgram(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "core/rendertype_window_colorless_cutout"), DefaultVertexFormat.NEW_ENTITY, ShaderDefines.EMPTY);
+	public static final ShaderProgram POSITION_TEX_TRANSLUCENT = new ShaderProgram(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "core/position_tex_translucent"), DefaultVertexFormat.POSITION_TEX, ShaderDefines.EMPTY);
 	
-	public static void registerShaders(CoreShaderRegistrationCallback.RegistrationContext context) throws IOException {
-		context.register(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "rendertype_window"), DefaultVertexFormat.NEW_ENTITY, shader -> {
-			RENDERTYPE_WINDOW = shader;
-		});
-		context.register(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "rendertype_window_cutout"), DefaultVertexFormat.NEW_ENTITY, shader -> {
-			RENDERTYPE_WINDOW_CUTOUT = shader;
-		});
-		context.register(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "rendertype_window_colorless"), DefaultVertexFormat.NEW_ENTITY, shader -> {
-			RENDERTYPE_WINDOW_COLORLESS = shader;
-		});
-		context.register(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "rendertype_window_colorless_cutout"), DefaultVertexFormat.NEW_ENTITY, shader -> {
-			RENDERTYPE_WINDOW_COLORLESS_CUTOUT = shader;
-		});
-		context.register(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "position_tex_translucent"), DefaultVertexFormat.POSITION_TEX, shader -> {
-			POSITION_TEX_TRANSLUCENT = shader;
-		});
-	}
-	
-	public static ShaderInstance getRendertypeWindowShader() {
-		return RENDERTYPE_WINDOW;
-	}
-	
-	public static ShaderInstance getRendertypeWindowColorlessShader() {
-		return RENDERTYPE_WINDOW_COLORLESS;
-	}
-	
-	public static ShaderInstance getRendertypeWindowCutoutShader() {
-		return RENDERTYPE_WINDOW_CUTOUT;
-	}
-	
-	public static ShaderInstance getRendertypeWindowColorlessCutoutShader() {
-		return RENDERTYPE_WINDOW_COLORLESS_CUTOUT;
-	}
-	
-	public static ShaderInstance getPositionTexTranslucentShader() {
-		return POSITION_TEX_TRANSLUCENT;
+	public static void registerShaders() {
+		CoreShaders.getProgramsToPreload().add(RENDERTYPE_WINDOW);
+		CoreShaders.getProgramsToPreload().add(RENDERTYPE_WINDOW_CUTOUT);
+		CoreShaders.getProgramsToPreload().add(RENDERTYPE_WINDOW_COLORLESS);
+		CoreShaders.getProgramsToPreload().add(RENDERTYPE_WINDOW_COLORLESS_CUTOUT);
+		CoreShaders.getProgramsToPreload().add(POSITION_TEX_TRANSLUCENT);
 	}
 	
 	public static RenderType rendertypeWindow(int texture) {
@@ -109,10 +75,10 @@ public class RenderUtils {
 		public static Function<Integer, RenderType> WINDOW_COLORLESS = Util.memoize(DummyRenderType::windowColorless);
 		public static Function<Integer, RenderType> WINDOW_CUTOUT = Util.memoize(DummyRenderType::windowCutout);
 		public static Function<Integer, RenderType> WINDOW_COLORLESS_CUTOUT = Util.memoize(DummyRenderType::windowColorlessCutout);
-		private static final RenderStateShard.ShaderStateShard RENDERTYPE_WINDOW = new RenderStateShard.ShaderStateShard(RenderUtils::getRendertypeWindowShader);
-		private static final RenderStateShard.ShaderStateShard RENDERTYPE_WINDOW_COLORLESS = new RenderStateShard.ShaderStateShard(RenderUtils::getRendertypeWindowColorlessShader);
-		private static final RenderStateShard.ShaderStateShard RENDERTYPE_WINDOW_CUTOUT = new RenderStateShard.ShaderStateShard(RenderUtils::getRendertypeWindowCutoutShader);
-		private static final RenderStateShard.ShaderStateShard RENDERTYPE_WINDOW_COLORLESS_CUTOUT = new RenderStateShard.ShaderStateShard(RenderUtils::getRendertypeWindowColorlessCutoutShader);
+		private static final RenderStateShard.ShaderStateShard RENDERTYPE_WINDOW = new RenderStateShard.ShaderStateShard(RenderUtils.RENDERTYPE_WINDOW);
+		private static final RenderStateShard.ShaderStateShard RENDERTYPE_WINDOW_COLORLESS = new RenderStateShard.ShaderStateShard(RenderUtils.RENDERTYPE_WINDOW_COLORLESS);
+		private static final RenderStateShard.ShaderStateShard RENDERTYPE_WINDOW_CUTOUT = new RenderStateShard.ShaderStateShard(RenderUtils.RENDERTYPE_WINDOW_CUTOUT);
+		private static final RenderStateShard.ShaderStateShard RENDERTYPE_WINDOW_COLORLESS_CUTOUT = new RenderStateShard.ShaderStateShard(RenderUtils.RENDERTYPE_WINDOW_COLORLESS_CUTOUT);
 		
 		private static RenderType window(int texture) {
 			RenderType.CompositeState compositeState = RenderType.CompositeState.builder()
@@ -177,6 +143,8 @@ public class RenderUtils {
 	}
 	
 	public static void renderWindow(WindowFramebuffer framebuffer, boolean cutout, Pose pose, Vec3 pos1, Vec3 pos2, Vec3 pos3, Vec3 pos4, Vec2 uv1, Vec2 uv2, Vec2 uv3, Vec2 uv4) {
+		if(!framebuffer.isValid()) return;
+		
 		Vector3f vec1 = pose.pose().transformPosition((float) pos1.x, (float) pos1.y, (float) pos1.z, new Vector3f());
 		Vector3f vec2 = pose.pose().transformPosition((float) pos2.x, (float) pos2.y, (float) pos2.z, new Vector3f());
 		Vector3f vec3 = pose.pose().transformPosition((float) pos3.x, (float) pos3.y, (float) pos3.z, new Vector3f());
@@ -217,16 +185,14 @@ public class RenderUtils {
 	}
 	
 	public static void blit(GuiGraphics context, ResourceLocation location, float x, float y, float width, float height) {
-		RenderSystem.setShaderTexture(0, location);
-		RenderSystem.setShader(RenderUtils::getPositionTexTranslucentShader);
 		RenderSystem.enableBlend();
-		Matrix4f matrix4f = context.pose().last().pose();
-		BufferBuilder bufferBuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-		bufferBuilder.addVertex(matrix4f, x        , y,          0).setUv(0, 0);
-		bufferBuilder.addVertex(matrix4f, x        , y + height, 0).setUv(0, 1);
-		bufferBuilder.addVertex(matrix4f, x + width, y + height, 0).setUv(1, 1);
-		bufferBuilder.addVertex(matrix4f, x + width, y,          0).setUv(1, 0);
-		BufferUploader.drawWithShader(bufferBuilder.build());
+		Pose pose = context.pose().last();
+		BufferSource source = Minecraft.getInstance().renderBuffers().bufferSource();
+		VertexConsumer buffer = source.getBuffer(RenderType.guiTextured(location));
+		buffer.addVertex(pose, x        , y         , 0).setUv(0, 0).setColor(Color.white.getRGB());
+		buffer.addVertex(pose, x        , y + height, 0).setUv(0, 1).setColor(Color.white.getRGB());
+		buffer.addVertex(pose, x + width, y + height, 0).setUv(1, 1).setColor(Color.white.getRGB());
+		buffer.addVertex(pose, x + width, y         , 0).setUv(1, 0).setColor(Color.white.getRGB());
 		RenderSystem.disableBlend();
 	}
 	

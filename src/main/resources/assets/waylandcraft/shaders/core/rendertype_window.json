@@ -1,11 +1,6 @@
 {
-    "blend": {
-        "func": "add",
-        "srcrgb": "srcalpha",
-        "dstrgb": "1-srcalpha"
-    },
-    "vertex": "waylandcraft:rendertype_window",
-    "fragment": "waylandcraft:rendertype_window",
+    "vertex": "waylandcraft:core/rendertype_window",
+    "fragment": "waylandcraft:core/rendertype_window",
     "samplers": [
         { "name": "Sampler0" }
     ],

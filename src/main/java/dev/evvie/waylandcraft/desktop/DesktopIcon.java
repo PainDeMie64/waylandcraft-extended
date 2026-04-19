@@ -17,7 +17,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.packs.resources.ResourceManager;
 
 public class DesktopIcon {
 	
@@ -130,10 +129,6 @@ public class DesktopIcon {
 		
 		public IconTexture(IconImage image) {
 			this.image = image;
-		}
-		
-		@Override
-		public void load(ResourceManager resourceManager) throws IOException {
 		}
 		
 		public void upload() {

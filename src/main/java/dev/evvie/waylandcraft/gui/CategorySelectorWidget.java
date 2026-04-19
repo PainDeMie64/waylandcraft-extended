@@ -11,6 +11,7 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.WidgetSprites;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.navigation.FocusNavigationEvent;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
@@ -75,8 +76,8 @@ public class CategorySelectorWidget extends AbstractWidget {
 			int bx = idxPosX(i);
 			int by = idxPosY(i);
 			
-			context.blitSprite(BUTTON_SPRITES.get(active, i == selected), bx, by, elementSize, elementSize);
-			context.blitSprite(entries.get(i).icon, bx + 2, by + 2, 15, 15);
+			context.blitSprite(RenderType::guiTextured, BUTTON_SPRITES.get(active, i == selected), bx, by, elementSize, elementSize);
+			context.blitSprite(RenderType::guiTextured, entries.get(i).icon, bx + 2, by + 2, 15, 15);
 			
 			if(mouseX > bx && mouseY > by && mouseX < bx + elementSize && mouseY < by + elementSize) {
 				context.renderTooltip(font, entries.get(i).title, mouseX, mouseY);

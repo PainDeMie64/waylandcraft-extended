@@ -1,5 +1,7 @@
 package dev.evvie.waylandcraft.mixin;
 
+import java.util.function.Function;
+
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -9,6 +11,7 @@ import dev.evvie.waylandcraft.CursorShape;
 import dev.evvie.waylandcraft.WaylandCraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
 
 @Mixin(Gui.class)
@@ -28,13 +31,13 @@ public class GuiMixin {
 	private static final ResourceLocation ZOOM_IN_CROSSHAIR = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/zoom_in");
 	private static final ResourceLocation ZOOM_OUT_CROSSHAIR = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/zoom_out");
 	
-	@Redirect(method = "renderCrosshair", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiGraphics;blitSprite(Lnet/minecraft/resources/ResourceLocation;IIII)V", ordinal = 0))
-	public void crosshairBlitSprite(GuiGraphics context, ResourceLocation original, int x, int y, int width, int height) {
+	@Redirect(method = "renderCrosshair", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiGraphics;blitSprite(Ljava/util/function/Function;Lnet/minecraft/resources/ResourceLocation;IIII)V", ordinal = 0))
+	public void crosshairBlitSprite(GuiGraphics context, Function<ResourceLocation, RenderType> func, ResourceLocation original, int x, int y, int width, int height) {
 		CursorShape cursor = WaylandCraft.instance.cursorShape;
 		ResourceLocation crosshair = crosshairForCursor(cursor);
 		if(crosshair == null) crosshair = original;
 		
-		context.blitSprite(crosshair, x, y, width, height);
+		context.blitSprite(func, crosshair, x, y, width, height);
 	}
 	
 	private @Nullable ResourceLocation crosshairForCursor(@Nullable CursorShape cursor) {

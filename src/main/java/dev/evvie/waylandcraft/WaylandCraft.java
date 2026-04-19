@@ -40,7 +40,6 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.CoreShaderRegistrationCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -116,9 +115,10 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		WorldRenderEvents.END.register((ctx) -> this.renderWorld(ctx.camera()));
 		ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
 		HudRenderCallback.EVENT.register(hudRenderer::render);
-		CoreShaderRegistrationCallback.EVENT.register(RenderUtils::registerShaders);
 		ServerTickEvents.START_WORLD_TICK.register(itemManager::onServerTick);
 		ClientPlayConnectionEvents.JOIN.register(this::onClientJoin);
+		
+		RenderUtils.registerShaders();
 	}
 	
 	/* Update bridge and clients. May be called at any state of the game, even outside of a level
@@ -237,7 +237,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	}
 	
 	private void onClientJoin(ClientPacketListener listener, PacketSender sender, Minecraft minecraft) {
-		minecraft.player.sendSystemMessage(Component.literal("Wayland compositor running on " + waylandSocket));
+		minecraft.getChatListener().handleSystemMessage(Component.literal("Wayland compositor running on " + waylandSocket), false);
 		itemManager.giveItemsIfMissing(bridge.getMappedToplevels());
 	}
 	

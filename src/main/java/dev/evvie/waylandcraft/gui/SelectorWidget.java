@@ -13,6 +13,7 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.WidgetSprites;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
@@ -164,7 +165,7 @@ public abstract class SelectorWidget<T> extends AbstractWidget {
 			Color color = dimColor ? Color.lightGray : Color.white;
 			Font font = Minecraft.getInstance().font;
 			
-			context.blitSprite(SPRITES.get(active, selected), x, y, width, height);
+			context.blitSprite(RenderType::guiTextured, SPRITES.get(active, selected), x, y, width, height);
 			context.enableScissor(x + 2, y, x + width - 2, y + height);
 			
 			int xoff = x + 2;

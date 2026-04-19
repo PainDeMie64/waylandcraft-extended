@@ -17,7 +17,7 @@ import com.mojang.blaze3d.vertex.VertexFormat.Mode;
 
 import dev.evvie.waylandcraft.bridge.WLCSurface;
 import dev.evvie.waylandcraft.bridge.WLCSurface.ViewportSource;
-import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.CoreShaders;
 
 public class WindowFramebuffer {
 	
@@ -71,10 +71,10 @@ public class WindowFramebuffer {
 	private void render() {
 		if(width == 0 || height == 0) return;
 		
-		target = new TextureTarget(width, height, false, false);
+		target = new TextureTarget(width, height, false);
 		target.setFilterMode(GL33.GL_NEAREST);
 		target.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-		target.clear(false);
+		target.clear();
 		
 		target.bindWrite(true);
 		
@@ -122,7 +122,7 @@ public class WindowFramebuffer {
 	}
 	
 	private void renderBuffer(PoseStack poseStack, BufferTexture buf, float x, float y, float w, float h, float u1, float v1, float u2, float v2) {
-		RenderSystem.setShader(buf.format == BufferTexture.FORMAT_XRGB8888 ? GameRenderer::getPositionTexShader : RenderUtils::getPositionTexTranslucentShader);
+		RenderSystem.setShader(buf.format == BufferTexture.FORMAT_XRGB8888 ? CoreShaders.POSITION_TEX : RenderUtils.POSITION_TEX_TRANSLUCENT);
 		RenderSystem.setShaderTexture(0, buf.id);
 		
 		Pose pose = poseStack.last();

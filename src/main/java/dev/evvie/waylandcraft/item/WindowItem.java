@@ -15,10 +15,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -29,19 +31,20 @@ import net.minecraft.world.level.Level;
 public class WindowItem extends Item {
 	
 	public static Item WINDOW;
+	public static ResourceKey<Item> WINDOW_RESOURCE_KEY = ResourceKey.create(Registries.ITEM, ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "window"));
 	public static DataComponentType<Long> WINDOW_HANDLE;
 	public static Component BROKEN_WINDOW_TEXT = Component.literal("Broken Window");
 	public static Component UNKNOWN_WINDOW_TEXT = Component.literal("Unknown Window");
 	public static final ResourceLocation BROKEN_WINDOW_MODEL = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "item/broken_window");
 	
 	public static void register() {
-		WINDOW = Registry.register(BuiltInRegistries.ITEM, ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "window"), new WindowItem());
+		WINDOW = Registry.register(BuiltInRegistries.ITEM, WINDOW_RESOURCE_KEY, new WindowItem());
 		WINDOW_HANDLE = Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "window_handle"), DataComponentType.<Long>builder().persistent(Codec.LONG).build());
 		
 		ModelLoadingPlugin.register(new ModelLoadingPlugin() {
 			
 			@Override
-			public void onInitializeModelLoader(Context pluginContext) {
+			public void initialize(Context pluginContext) {
 				pluginContext.addModels(BROKEN_WINDOW_MODEL);
 			}
 			
@@ -49,7 +52,7 @@ public class WindowItem extends Item {
 	}
 	
 	public WindowItem() {
-		super(new Properties());
+		super(new Properties().setId(WINDOW_RESOURCE_KEY));
 	}
 	
 	@Nullable
@@ -83,14 +86,14 @@ public class WindowItem extends Item {
 	}
 	
 	@Override
-	public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand interactionHand) {
+	public InteractionResult use(Level level, Player player, InteractionHand interactionHand) {
 		ItemStack item = player.getItemInHand(interactionHand);
 		WLCToplevel toplevel = getToplevel(item);
 		
-		if(toplevel == null) return InteractionResultHolder.pass(item);
+		if(toplevel == null) return InteractionResult.PASS;
 		
 		player.startUsingItem(interactionHand);
-		return InteractionResultHolder.sidedSuccess(item, level.isClientSide());
+		return InteractionResult.CONSUME;
 	}
 	
 	@Override

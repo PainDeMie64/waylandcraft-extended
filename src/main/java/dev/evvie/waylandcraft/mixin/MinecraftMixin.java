@@ -11,7 +11,7 @@ import net.minecraft.client.Minecraft;
 @Mixin(Minecraft.class)
 public class MinecraftMixin {
 	
-	@Inject(method = "runTick", at = @At(value = "INVOKE_STRING", target = "Lnet/minecraft/util/profiling/ProfilerFiller;push(Ljava/lang/String;)V", args = "ldc=render"))
+	@Inject(method = "runTick", at = @At(value = "INVOKE_STRING", target = "Lnet/minecraft/util/profiling/ProfilerFiller;popPush(Ljava/lang/String;)V", args = "ldc=render"))
 	public void runTick(boolean doTick, CallbackInfo info) {
 		WaylandCraft.instance.update();
 	}

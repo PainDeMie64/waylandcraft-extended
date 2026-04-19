@@ -16,7 +16,7 @@ import net.minecraft.client.gui.navigation.CommonInputs;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.FastColor;
+import net.minecraft.util.ARGB;
 
 public class AppWidget extends AbstractWidget {
 	
@@ -62,7 +62,7 @@ public class AppWidget extends AbstractWidget {
 		
 		if(selected) {
 			context.renderOutline(x - 1, y - 1, width + 2, height + 2, Color.white.getRGB());
-			context.fill(x + 4, y + 4, x + width - 4, y + height - 4, 1, FastColor.ARGB32.color(64, Color.black.getRGB()));
+			context.fill(x + 4, y + 4, x + width - 4, y + height - 4, 1, ARGB.color(64, Color.black.getRGB()));
 		}
 	}
 	
