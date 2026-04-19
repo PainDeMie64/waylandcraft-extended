@@ -14,6 +14,7 @@ import dev.evvie.waylandcraft.desktop.DesktopEntry;
 import dev.evvie.waylandcraft.render.RenderUtils;
 import dev.evvie.waylandcraft.render.WindowFramebuffer;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -31,7 +32,7 @@ public class WaylandHudRenderer {
 		this.wlc = wlc;
 	}
 	
-	public void render(GuiGraphics context, float delta) {
+	public void render(GuiGraphics context, DeltaTracker tracker) {
 		if(Minecraft.getInstance().options.hideGui) return;
 		
 		drawTimeDate(context);

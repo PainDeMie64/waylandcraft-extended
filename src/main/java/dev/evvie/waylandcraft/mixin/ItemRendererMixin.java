@@ -1,5 +1,7 @@
 package dev.evvie.waylandcraft.mixin;
 
+import java.awt.Color;
+
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
@@ -88,16 +90,16 @@ public class ItemRendererMixin {
 		Vector3f normal = pose.transformNormal(0, 0, 1, new Vector3f());
 		
 		// Front quad
-		buffer.vertex(/* pos */ pos1.x, pos1.y, pos1.z, /* color */ 1, 1, 1, 1, /* uv */ uv1.x, uv1.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
-		buffer.vertex(/* pos */ pos2.x, pos2.y, pos2.z, /* color */ 1, 1, 1, 1, /* uv */ uv2.x, uv2.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
-		buffer.vertex(/* pos */ pos3.x, pos3.y, pos3.z, /* color */ 1, 1, 1, 1, /* uv */ uv3.x, uv3.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
-		buffer.vertex(/* pos */ pos4.x, pos4.y, pos4.z, /* color */ 1, 1, 1, 1, /* uv */ uv4.x, uv4.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ pos1.x, pos1.y, pos1.z, /* color */ Color.white.getRGB(), /* uv */ uv1.x, uv1.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ pos2.x, pos2.y, pos2.z, /* color */ Color.white.getRGB(), /* uv */ uv2.x, uv2.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ pos3.x, pos3.y, pos3.z, /* color */ Color.white.getRGB(), /* uv */ uv3.x, uv3.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ pos4.x, pos4.y, pos4.z, /* color */ Color.white.getRGB(), /* uv */ uv4.x, uv4.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
 		
 		// Back quad
-		buffer.vertex(/* pos */ pos1.x, pos1.y, pos1.z, /* color */ 1, 1, 1, 1, /* uv */ uv1.x, uv1.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
-		buffer.vertex(/* pos */ pos4.x, pos4.y, pos4.z, /* color */ 1, 1, 1, 1, /* uv */ uv4.x, uv4.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
-		buffer.vertex(/* pos */ pos3.x, pos3.y, pos3.z, /* color */ 1, 1, 1, 1, /* uv */ uv3.x, uv3.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
-		buffer.vertex(/* pos */ pos2.x, pos2.y, pos2.z, /* color */ 1, 1, 1, 1, /* uv */ uv2.x, uv2.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ pos1.x, pos1.y, pos1.z, /* color */ Color.white.getRGB(), /* uv */ uv1.x, uv1.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ pos4.x, pos4.y, pos4.z, /* color */ Color.white.getRGB(), /* uv */ uv4.x, uv4.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ pos3.x, pos3.y, pos3.z, /* color */ Color.white.getRGB(), /* uv */ uv3.x, uv3.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ pos2.x, pos2.y, pos2.z, /* color */ Color.white.getRGB(), /* uv */ uv2.x, uv2.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
 	}
 	
 }

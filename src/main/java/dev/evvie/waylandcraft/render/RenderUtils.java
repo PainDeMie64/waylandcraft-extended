@@ -1,5 +1,6 @@
 package dev.evvie.waylandcraft.render;
 
+import java.awt.Color;
 import java.io.IOException;
 import java.util.function.Function;
 
@@ -43,19 +44,19 @@ public class RenderUtils {
 	private static ShaderInstance POSITION_TEX_TRANSLUCENT;
 	
 	public static void registerShaders(CoreShaderRegistrationCallback.RegistrationContext context) throws IOException {
-		context.register(new ResourceLocation(WaylandCraft.MOD_ID, "rendertype_window"), DefaultVertexFormat.NEW_ENTITY, shader -> {
+		context.register(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "rendertype_window"), DefaultVertexFormat.NEW_ENTITY, shader -> {
 			RENDERTYPE_WINDOW = shader;
 		});
-		context.register(new ResourceLocation(WaylandCraft.MOD_ID, "rendertype_window_cutout"), DefaultVertexFormat.NEW_ENTITY, shader -> {
+		context.register(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "rendertype_window_cutout"), DefaultVertexFormat.NEW_ENTITY, shader -> {
 			RENDERTYPE_WINDOW_CUTOUT = shader;
 		});
-		context.register(new ResourceLocation(WaylandCraft.MOD_ID, "rendertype_window_colorless"), DefaultVertexFormat.NEW_ENTITY, shader -> {
+		context.register(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "rendertype_window_colorless"), DefaultVertexFormat.NEW_ENTITY, shader -> {
 			RENDERTYPE_WINDOW_COLORLESS = shader;
 		});
-		context.register(new ResourceLocation(WaylandCraft.MOD_ID, "rendertype_window_colorless_cutout"), DefaultVertexFormat.NEW_ENTITY, shader -> {
+		context.register(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "rendertype_window_colorless_cutout"), DefaultVertexFormat.NEW_ENTITY, shader -> {
 			RENDERTYPE_WINDOW_COLORLESS_CUTOUT = shader;
 		});
-		context.register(new ResourceLocation(WaylandCraft.MOD_ID, "position_tex_translucent"), DefaultVertexFormat.POSITION_TEX, shader -> {
+		context.register(ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "position_tex_translucent"), DefaultVertexFormat.POSITION_TEX, shader -> {
 			POSITION_TEX_TRANSLUCENT = shader;
 		});
 	}
@@ -191,18 +192,18 @@ public class RenderUtils {
 		
 		// Front quad
 		buffer = source.getBuffer(cutout ? RenderUtils.rendertypeWindowCutout(framebuffer.getTexture()) : RenderUtils.rendertypeWindow(framebuffer.getTexture()));
-		buffer.vertex(/* pos */ vec1.x, vec1.y, vec1.z, /* color */ 1, 1, 1, 1, /* uv */ uv1.x, uv1.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
-		buffer.vertex(/* pos */ vec2.x, vec2.y, vec2.z, /* color */ 1, 1, 1, 1, /* uv */ uv2.x, uv2.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
-		buffer.vertex(/* pos */ vec3.x, vec3.y, vec3.z, /* color */ 1, 1, 1, 1, /* uv */ uv3.x, uv3.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
-		buffer.vertex(/* pos */ vec4.x, vec4.y, vec4.z, /* color */ 1, 1, 1, 1, /* uv */ uv4.x, uv4.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ vec1.x, vec1.y, vec1.z, /* color */ Color.white.getRGB(), /* uv */ uv1.x, uv1.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ vec2.x, vec2.y, vec2.z, /* color */ Color.white.getRGB(), /* uv */ uv2.x, uv2.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ vec3.x, vec3.y, vec3.z, /* color */ Color.white.getRGB(), /* uv */ uv3.x, uv3.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ vec4.x, vec4.y, vec4.z, /* color */ Color.white.getRGB(), /* uv */ uv4.x, uv4.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
 		source.endBatch();
 		
 		// Back quad
 		buffer = source.getBuffer(cutout ? RenderUtils.rendertypeWindowColorlessCutout(framebuffer.getTexture()) : RenderUtils.rendertypeWindowColorless(framebuffer.getTexture()));
-		buffer.vertex(/* pos */ vec4.x, vec4.y, vec4.z, /* color */ 1, 1, 1, 1, /* uv */ uv4.x, uv4.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
-		buffer.vertex(/* pos */ vec3.x, vec3.y, vec3.z, /* color */ 1, 1, 1, 1, /* uv */ uv3.x, uv3.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
-		buffer.vertex(/* pos */ vec2.x, vec2.y, vec2.z, /* color */ 1, 1, 1, 1, /* uv */ uv2.x, uv2.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
-		buffer.vertex(/* pos */ vec1.x, vec1.y, vec1.z, /* color */ 1, 1, 1, 1, /* uv */ uv1.x, uv1.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ vec4.x, vec4.y, vec4.z, /* color */ Color.white.getRGB(), /* uv */ uv4.x, uv4.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ vec3.x, vec3.y, vec3.z, /* color */ Color.white.getRGB(), /* uv */ uv3.x, uv3.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ vec2.x, vec2.y, vec2.z, /* color */ Color.white.getRGB(), /* uv */ uv2.x, uv2.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
+		buffer.addVertex(/* pos */ vec1.x, vec1.y, vec1.z, /* color */ Color.white.getRGB(), /* uv */ uv1.x, uv1.y, /* overlay */ overlayCoords, /* uv2 */ light, /* normal */ normal.x, normal.y, normal.z);
 		source.endBatch();
 	}
 	
@@ -220,13 +221,12 @@ public class RenderUtils {
 		RenderSystem.setShader(RenderUtils::getPositionTexTranslucentShader);
 		RenderSystem.enableBlend();
 		Matrix4f matrix4f = context.pose().last().pose();
-		BufferBuilder bufferBuilder = Tesselator.getInstance().getBuilder();
-		bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-		bufferBuilder.vertex(matrix4f, x        , y,          0).uv(0, 0).endVertex();
-		bufferBuilder.vertex(matrix4f, x        , y + height, 0).uv(0, 1).endVertex();
-		bufferBuilder.vertex(matrix4f, x + width, y + height, 0).uv(1, 1).endVertex();
-		bufferBuilder.vertex(matrix4f, x + width, y,          0).uv(1, 0).endVertex();
-		BufferUploader.drawWithShader(bufferBuilder.end());
+		BufferBuilder bufferBuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+		bufferBuilder.addVertex(matrix4f, x        , y,          0).setUv(0, 0);
+		bufferBuilder.addVertex(matrix4f, x        , y + height, 0).setUv(0, 1);
+		bufferBuilder.addVertex(matrix4f, x + width, y + height, 0).setUv(1, 1);
+		bufferBuilder.addVertex(matrix4f, x + width, y,          0).setUv(1, 0);
+		BufferUploader.drawWithShader(bufferBuilder.build());
 		RenderSystem.disableBlend();
 	}
 	

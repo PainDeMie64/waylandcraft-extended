@@ -11,8 +11,7 @@ import net.minecraft.world.phys.Vec3;
 public class WaylandCraftUtils {
 	
 	public static Vec3 getPosition(Entity entity) {
-		float partialTicks = Minecraft.getInstance().getFrameTime();
-		
+		float partialTicks = Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(true);
 		Vec3 pos = new Vec3(
 			Mth.lerp(partialTicks, entity.xo, entity.getX()),
 			Mth.lerp(partialTicks, entity.yo, entity.getY()) + entity.getEyeHeight(),
@@ -22,7 +21,7 @@ public class WaylandCraftUtils {
 	}
 	
 	public static Vec3 getLookVector(Entity entity) {
-		float partialTicks = Minecraft.getInstance().getFrameTime();
+		float partialTicks = Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(true);
 		float yaw = entity.getViewYRot(partialTicks);
 		float pitch = entity.getViewXRot(partialTicks);
 		
@@ -34,7 +33,7 @@ public class WaylandCraftUtils {
 	}
 	
 	public static Vec3 getUpVector(Entity entity) {
-		float partialTicks = Minecraft.getInstance().getFrameTime();
+		float partialTicks = Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(true);
 		float yaw = entity.getViewYRot(partialTicks);
 		float pitch = entity.getViewXRot(partialTicks);
 		

@@ -20,8 +20,8 @@ import net.minecraft.util.FastColor;
 
 public class AppWidget extends AbstractWidget {
 	
-	private static final ResourceLocation SLOT_THINGY = new ResourceLocation(WaylandCraft.MOD_ID, "textures/gui/slot_thingy.png");
-	private static final ResourceLocation SLOT_THINGY_SELECTED = new ResourceLocation(WaylandCraft.MOD_ID, "textures/gui/slot_thingy_selected_overlay.png");
+	private static final ResourceLocation SLOT_THINGY = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "textures/gui/slot_thingy.png");
+	private static final ResourceLocation SLOT_THINGY_SELECTED = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "textures/gui/slot_thingy_selected_overlay.png");
 	
 	public final DesktopEntry entry;
 	private Consumer<DesktopEntry> launchAction;

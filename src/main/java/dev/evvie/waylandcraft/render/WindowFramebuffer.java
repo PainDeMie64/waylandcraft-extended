@@ -19,9 +19,9 @@ public class WindowFramebuffer {
 	private static int SHADER_OPAQUE = -1;
 	private static boolean shadersCompiled = false;
 	
-	private static ResourceLocation SHADER_FRAG_LOC = new ResourceLocation(WaylandCraft.MOD_ID, "shaders/window.fsh");
-	private static ResourceLocation SHADER_FRAG_OPAQUE_LOC = new ResourceLocation(WaylandCraft.MOD_ID, "shaders/window_opaque.fsh");
-	private static ResourceLocation SHADER_VERT_LOC = new ResourceLocation(WaylandCraft.MOD_ID, "shaders/window.vsh");
+	private static ResourceLocation SHADER_FRAG_LOC = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "shaders/window.fsh");
+	private static ResourceLocation SHADER_FRAG_OPAQUE_LOC = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "shaders/window_opaque.fsh");
+	private static ResourceLocation SHADER_VERT_LOC = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "shaders/window.vsh");
 	
 	public final WLCSurface surfaceTree;
 	

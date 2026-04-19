@@ -121,7 +121,7 @@ public class WindowManagerScreen extends Screen {
 		buttons.add(resizeButton);
 		
 		hideButton = SpriteIconButton.builder(Component.literal("Hide"), this::onHidePressed, true)
-				.sprite(new ResourceLocation("waylandcraft", "hide"), 15, 15)
+				.sprite(ResourceLocation.fromNamespaceAndPath("waylandcraft", "hide"), 15, 15)
 				.size(22, 22)
 				.build();
 		hideButton.setPosition(3, topMargin);
@@ -130,7 +130,7 @@ public class WindowManagerScreen extends Screen {
 		buttons.add(hideButton);
 		
 		pinButton = SpriteIconButton.builder(Component.literal("Pin"), this::onPinPressed, true)
-				.sprite(new ResourceLocation("waylandcraft", "pin"), 15, 15)
+				.sprite(ResourceLocation.fromNamespaceAndPath("waylandcraft", "pin"), 15, 15)
 				.size(22, 22)
 				.build();
 		pinButton.setPosition(3, topMargin + 30);
@@ -139,7 +139,7 @@ public class WindowManagerScreen extends Screen {
 		buttons.add(pinButton);
 		
 		itemButton = SpriteIconButton.builder(Component.literal("Give Window Item"), this::onItemPressed, true)
-				.sprite(new ResourceLocation("waylandcraft", "window"), 16, 16)
+				.sprite(ResourceLocation.fromNamespaceAndPath("waylandcraft", "window"), 16, 16)
 				.size(22, 22)
 				.build();
 		itemButton.setPosition(3, topMargin + 60);

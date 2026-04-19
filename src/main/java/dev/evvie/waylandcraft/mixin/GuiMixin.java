@@ -14,19 +14,19 @@ import net.minecraft.resources.ResourceLocation;
 @Mixin(Gui.class)
 public class GuiMixin {
 	
-	private static final ResourceLocation TLBR_DIAGONAL_CROSSHAIR = new ResourceLocation(WaylandCraft.MOD_ID, "crosshair/tlbr_diagonal");
-	private static final ResourceLocation TRBL_DIAGONAL_CROSSHAIR = new ResourceLocation(WaylandCraft.MOD_ID, "crosshair/trbl_diagonal");
-	private static final ResourceLocation LEFT_RIGHT_CROSSHAIR = new ResourceLocation(WaylandCraft.MOD_ID, "crosshair/left_right");
-	private static final ResourceLocation TOP_BOTTOM_CROSSHAIR = new ResourceLocation(WaylandCraft.MOD_ID, "crosshair/top_bottom");
+	private static final ResourceLocation TLBR_DIAGONAL_CROSSHAIR = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/tlbr_diagonal");
+	private static final ResourceLocation TRBL_DIAGONAL_CROSSHAIR = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/trbl_diagonal");
+	private static final ResourceLocation LEFT_RIGHT_CROSSHAIR = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/left_right");
+	private static final ResourceLocation TOP_BOTTOM_CROSSHAIR = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/top_bottom");
 	
-	private static final ResourceLocation HELP_CROSSHAIR = new ResourceLocation(WaylandCraft.MOD_ID, "crosshair/help");
-	private static final ResourceLocation MOVE_CROSSHAIR = new ResourceLocation(WaylandCraft.MOD_ID, "crosshair/move");
-	private static final ResourceLocation POINTER_CROSSHAIR = new ResourceLocation(WaylandCraft.MOD_ID, "crosshair/pointer");
-	private static final ResourceLocation TEXT_CROSSHAIR = new ResourceLocation(WaylandCraft.MOD_ID, "crosshair/text");
-	private static final ResourceLocation VTEXT_CROSSHAIR = new ResourceLocation(WaylandCraft.MOD_ID, "crosshair/vtext");
-	private static final ResourceLocation WAIT_CROSSHAIR = new ResourceLocation(WaylandCraft.MOD_ID, "crosshair/wait");
-	private static final ResourceLocation ZOOM_IN_CROSSHAIR = new ResourceLocation(WaylandCraft.MOD_ID, "crosshair/zoom_in");
-	private static final ResourceLocation ZOOM_OUT_CROSSHAIR = new ResourceLocation(WaylandCraft.MOD_ID, "crosshair/zoom_out");
+	private static final ResourceLocation HELP_CROSSHAIR = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/help");
+	private static final ResourceLocation MOVE_CROSSHAIR = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/move");
+	private static final ResourceLocation POINTER_CROSSHAIR = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/pointer");
+	private static final ResourceLocation TEXT_CROSSHAIR = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/text");
+	private static final ResourceLocation VTEXT_CROSSHAIR = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/vtext");
+	private static final ResourceLocation WAIT_CROSSHAIR = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/wait");
+	private static final ResourceLocation ZOOM_IN_CROSSHAIR = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/zoom_in");
+	private static final ResourceLocation ZOOM_OUT_CROSSHAIR = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "crosshair/zoom_out");
 	
 	@Redirect(method = "renderCrosshair", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiGraphics;blitSprite(Lnet/minecraft/resources/ResourceLocation;IIII)V", ordinal = 0))
 	public void crosshairBlitSprite(GuiGraphics context, ResourceLocation original, int x, int y, int width, int height) {

@@ -32,11 +32,11 @@ public class WindowItem extends Item {
 	public static DataComponentType<Long> WINDOW_HANDLE;
 	public static Component BROKEN_WINDOW_TEXT = Component.literal("Broken Window");
 	public static Component UNKNOWN_WINDOW_TEXT = Component.literal("Unknown Window");
-	public static final ResourceLocation BROKEN_WINDOW_MODEL = new ResourceLocation(WaylandCraft.MOD_ID, "item/broken_window");
+	public static final ResourceLocation BROKEN_WINDOW_MODEL = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "item/broken_window");
 	
 	public static void register() {
-		WINDOW = Registry.register(BuiltInRegistries.ITEM, new ResourceLocation(WaylandCraft.MOD_ID, "window"), new WindowItem());
-		WINDOW_HANDLE = Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, new ResourceLocation(WaylandCraft.MOD_ID, "window_handle"), DataComponentType.<Long>builder().persistent(Codec.LONG).build());
+		WINDOW = Registry.register(BuiltInRegistries.ITEM, ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "window"), new WindowItem());
+		WINDOW_HANDLE = Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "window_handle"), DataComponentType.<Long>builder().persistent(Codec.LONG).build());
 		
 		ModelLoadingPlugin.register(new ModelLoadingPlugin() {
 			

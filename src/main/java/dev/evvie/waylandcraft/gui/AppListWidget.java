@@ -15,8 +15,8 @@ import net.minecraft.resources.ResourceLocation;
 
 public class AppListWidget extends AbstractContainerWidget {
 	
-	private static final ResourceLocation SCROLLER_SPRITE = new ResourceLocation("widget/scroller");
-	private static final ResourceLocation SCROLLER_BACKGROUND_SPRITE = new ResourceLocation("widget/scroller_background");
+	private static final ResourceLocation SCROLLER_SPRITE = ResourceLocation.withDefaultNamespace("widget/scroller");
+	private static final ResourceLocation SCROLLER_BACKGROUND_SPRITE = ResourceLocation.withDefaultNamespace("widget/scroller_background");
 	
 	private static final int SLOT_GAPS = 2;
 	public static final int ELEMENT_WIDTH = 200 + 2;

@@ -52,9 +52,9 @@ public class CategorySelectorWidget extends AbstractWidget {
 	}
 	
 	private static final WidgetSprites BUTTON_SPRITES = new WidgetSprites(
-			new ResourceLocation("widget/button"),
-			new ResourceLocation("widget/button_disabled"),
-			new ResourceLocation("widget/button_highlighted")
+			ResourceLocation.withDefaultNamespace("widget/button"),
+			ResourceLocation.withDefaultNamespace("widget/button_disabled"),
+			ResourceLocation.withDefaultNamespace("widget/button_highlighted")
 	);
 	
 	private int elementsPerColumn() {

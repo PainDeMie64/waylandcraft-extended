@@ -31,7 +31,7 @@ public class DesktopIcon {
 	
 	public DesktopIcon(String appId, String path) {
 		this.path = path;
-		this.location = new ResourceLocation(WaylandCraft.MOD_ID, "icon_" + DigestUtils.sha1Hex(appId));
+		this.location = ResourceLocation.fromNamespaceAndPath(WaylandCraft.MOD_ID, "icon_" + DigestUtils.sha1Hex(appId));
 		this.wlc = WaylandCraft.instance;
 	}
 	
