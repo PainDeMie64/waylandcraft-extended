@@ -255,7 +255,7 @@ public class WaylandCraftBridge {
 		
 		long dndIconHandle = dndIcon(instance);
 		if(dndIconHandle == 0) {
-			if(dndIcon != null && dndIcon.framebuffer != null) dndIcon.framebuffer.freeTexture();
+			if(dndIcon != null && dndIcon.framebuffer != null) dndIcon.framebuffer.free();
 			dndIcon = null;
 		}
 		else {
@@ -302,7 +302,7 @@ public class WaylandCraftBridge {
 		
 		// Render windows
 		for(WLCAbstractWindow window : allWindows) {
-			if(window.framebuffer != null) window.framebuffer.freeTexture();
+			if(window.framebuffer != null) window.framebuffer.free();
 			window.framebuffer = WindowFramebuffer.renderSurfaceTree(window.getSurfaceTree());
 		}
 		

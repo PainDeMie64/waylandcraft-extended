@@ -12,7 +12,7 @@ public class IconSurface {
 	}
 	
 	public void render() {
-		if(framebuffer != null) framebuffer.freeTexture();
+		if(framebuffer != null) framebuffer.free();
 		framebuffer = WindowFramebuffer.renderSurfaceTree(surface);
 	}
 	
