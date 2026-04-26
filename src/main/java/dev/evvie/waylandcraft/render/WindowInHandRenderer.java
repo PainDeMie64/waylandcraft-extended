@@ -80,8 +80,14 @@ public class WindowInHandRenderer {
 			hscale = height / width;
 		}
 		
-		float scale = 0.6f;
+		/* Move windows with small aspect ratio about in the hand */
+		final float threshold = 0.5f;
+		final float moveDist = 0.14f;
+		float offset = (Math.min(wscale, threshold) - threshold) * (moveDist / threshold);
+		poseStack.translate(offset * sideMult, 0, 0);
 		
+		/* Final transformations */
+		final float scale = 0.6f;
 		poseStack.scale(scale, scale, 1);
 		poseStack.translate(-wscale / 2 * sideMult, hscale / 2, 0);
 		poseStack.scale(wscale, hscale, 1);
