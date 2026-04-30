@@ -23,6 +23,8 @@ import dev.evvie.waylandcraft.desktop.RawDesktopEntry;
 import dev.evvie.waylandcraft.render.BufferTexture.DmabufTexture;
 import dev.evvie.waylandcraft.render.WindowFramebuffer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.util.profiling.Profiler;
+import net.minecraft.util.profiling.ProfilerFiller;
 
 public class WaylandCraftBridge {
 	
@@ -218,8 +220,13 @@ public class WaylandCraftBridge {
 	}
 	
 	public void update() {
+		ProfilerFiller profiler = Profiler.get();
+		profiler.push("wayland");
+		
+		profiler.push("update");
 		// Update wayland clients
 		update(this.instance);
+		profiler.pop();
 		
 		// Find all available toplevels and delete ones that no longer exist
 		long[] toplevelHandles = toplevels(instance);
@@ -251,6 +258,7 @@ public class WaylandCraftBridge {
 			surface.visited = false;
 		}
 		
+		profiler.push("surfaces");
 		// Create new toplevels when necessary
 		// Update surface tree geometry and properties of all toplevels
 		for(long handle : toplevelHandles) {
@@ -303,6 +311,7 @@ public class WaylandCraftBridge {
 		
 		// All surface trees have now been walked. Now delete all unvisited surfaces
 		deleteUnvisitedSurfaces();
+		profiler.pop();
 		
 		// Resolve surface parent handles to actual surfaces
 		for(WLCSurface surface : surfaces) {
@@ -333,11 +342,15 @@ public class WaylandCraftBridge {
 			toplevel.wasMapped = mapped;
 		}
 		
+		profiler.push("framebuffer");
+		
 		// Render windows
 		for(WLCAbstractWindow window : allWindows) {
 			if(window.framebuffer != null) window.framebuffer.free();
 			window.framebuffer = WindowFramebuffer.renderSurfaceTree(window.getSurfaceTree());
 		}
+		
+		profiler.pop();
 		
 		deleteNonExistingDmabufs(dmabufs(instance));
 		
@@ -347,6 +360,8 @@ public class WaylandCraftBridge {
 		for(WLCSurface surface : surfaces) {
 			sendFrame(surface.getHandle());
 		}
+		
+		profiler.pop();
 	}
 	
 	private void updateGeometry(WLCAbstractWindow window) {

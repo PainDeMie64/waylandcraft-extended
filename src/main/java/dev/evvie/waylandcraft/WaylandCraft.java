@@ -52,7 +52,6 @@ import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import net.minecraft.util.profiling.Profiler;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -137,9 +136,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			
 			LOGGER.info("Server started on " + waylandSocket);
 		}
-		Profiler.get().push("wayland");
 		bridge.update();
-		Profiler.get().pop();
 	}
 	
 	public void renderWorld(LevelRenderContext ctx) {
