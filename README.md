@@ -54,4 +54,8 @@ in `build/libs/` or run `./gradlew runClient` to run it in a development environ
 ## Disclaimer
 This compositor still has lots of issues and bugs. Use it at your own risk or whatever.
 
-The entire project was written **without the usage of any generative AI**.
+## Contribution Policy
+All contributions have to be made an accordance with the GPLv3 license (see `LICENSE`).
+Waylandcraft has a strong no generative AI policy for reasons of code and contribution quality as well as ethical and copyright concerns.
+All contributions have to be made without major LLM assistance in the final submitted code. You sign this off every time you submit code
+via a pull request or similar.
