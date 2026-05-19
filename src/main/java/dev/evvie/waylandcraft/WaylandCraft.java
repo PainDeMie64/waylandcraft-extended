@@ -626,7 +626,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		// Handle implicit pointer grab button presses
 		if(action == 1) {
-			if(hoveredDisplay != null && hoveredDisplay.control != MonitorControl.NONE) {
+			if(hoveredDisplay != null && hoveredDisplay.control.isButton()) {
 				handleMonitorControl(hoveredDisplay, button);
 				return true;
 			}

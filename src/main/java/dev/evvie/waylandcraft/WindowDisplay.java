@@ -104,6 +104,10 @@ public class WindowDisplay {
 	public void moveOrigin(Vec3 pos) {
 		pivot = pos.add(localX().scale(width/2)).add(localY().scale(height/2));
 	}
+
+	public boolean containsDisplayLocal(double x, double y) {
+		return x >= 0 && y >= 0 && x <= width && y <= height;
+	}
 	
 	public void updateGeometry() {
 		if(!customPresentationSize || width <= 0 || height <= 0) {
@@ -344,7 +348,7 @@ public class WindowDisplay {
 			ControlRect rect = controlRect(control);
 			if(rect.contains(displayLocalCoords.x, displayLocalCoords.y)) return control;
 		}
-		if(chromeRect().contains(displayLocalCoords.x, displayLocalCoords.y)) return MonitorControl.CHROME;
+		if(!containsDisplayLocal(displayLocalCoords.x, displayLocalCoords.y) && chromeRect().contains(displayLocalCoords.x, displayLocalCoords.y)) return MonitorControl.CHROME;
 		return MonitorControl.NONE;
 	}
 

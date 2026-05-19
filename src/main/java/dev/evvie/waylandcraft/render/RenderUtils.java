@@ -1,7 +1,6 @@
 package dev.evvie.waylandcraft.render;
 
 import java.util.function.Function;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 import com.mojang.blaze3d.pipeline.BlendFunction;
@@ -106,7 +105,7 @@ public class RenderUtils {
 			.withLocation(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "pipeline/monitor_solid"))
 			.withVertexShader("core/position_color")
 			.withFragmentShader("core/position_color")
-			.withColorTargetState(new ColorTargetState(Optional.empty(), ColorTargetState.WRITE_COLOR))
+			.withColorTargetState(ColorTargetState.DEFAULT)
 			.withDepthStencilState(DepthStencilState.DEFAULT)
 			.withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS)
 			.withCull(false)
