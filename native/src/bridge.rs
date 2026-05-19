@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 
 use crate::egl::{EGLDisplay, EGLHelper};
+use crate::process::cleanup_display_processes;
 use crate::svg::render_svg;
 use crate::utils::get_time;
 use crate::xdg_spec::RawDesktopEntry;
@@ -112,6 +113,25 @@ pub extern "system" fn setNativeDebugInput<'l>(
     enabled: jboolean,
 ) {
     set_debug_input_enabled(enabled == JNI_TRUE);
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    cleanupLaunchedApps")]
+pub extern "system" fn cleanupLaunchedApps<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong,
+) {
+    let instance = jptr_to_instance(ptr);
+    let killed = cleanup_display_processes(
+        &instance.state.socket,
+        instance.state.xdisplay,
+    );
+    if killed > 0 {
+        log_native_stderr(&format!(
+            "WLC cleanup terminated {killed} embedded app process group(s)"
+        ));
+    }
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\

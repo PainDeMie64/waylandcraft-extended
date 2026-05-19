@@ -38,6 +38,7 @@ public class WaylandCraftBridge {
 	private ArrayList<DmabufTexture> dmabufs = new ArrayList<DmabufTexture>();
 	private ArrayList<DmabufTexture> retiredDmabufs = new ArrayList<DmabufTexture>();
 	private ArrayList<WindowFramebuffer> framebuffers = new ArrayList<WindowFramebuffer>();
+	private boolean launchedAppsCleaned = false;
 
 	public IconSurface dndIcon = null;
 
@@ -96,7 +97,17 @@ public class WaylandCraftBridge {
 
 		long handle = init(GLFW.Functions.GetProcAddress, eglDisplay);
 		setNativeDebugInput(WaylandCraft.DEBUG_WINDOWS);
-		return new WaylandCraftBridge(handle);
+		WaylandCraftBridge bridge = new WaylandCraftBridge(handle);
+		Runtime.getRuntime().addShutdownHook(new Thread(
+				bridge::cleanupLaunchedApps,
+				"WaylandCraft app cleanup"));
+		return bridge;
+	}
+
+	public synchronized void cleanupLaunchedApps() {
+		if(launchedAppsCleaned || instance == 0) return;
+		launchedAppsCleaned = true;
+		cleanupLaunchedApps(instance);
 	}
 
 	protected WLCToplevel getOrCreateToplevel(long handle) {
@@ -862,6 +873,7 @@ public class WaylandCraftBridge {
 
 	private static native long init(long glfwGetProcAddress, long eglDisplay);
 	private static native void setNativeDebugInput(boolean enabled);
+	private static native void cleanupLaunchedApps(long instance);
 	private static native void update(long instance);
 	private static native String socket(long instance);
 	private static native void sendFrame(long handle);
