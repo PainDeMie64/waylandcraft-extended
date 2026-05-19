@@ -42,11 +42,10 @@ public class MonitorResizeGrab extends PointerGrab {
 		if(!window.isValid()) this.drop();
 
 		wlc.cursorShape = CursorShape.SE_RESIZE;
-		window.moveOrigin(startOrigin);
 		PlaneHit hit = window.intersectPlane(pos, view);
 		if(hit == null) return;
 
-		Vec3 local = window.worldToLocal(hit.position());
+		Vec3 local = window.worldToLocalFromOrigin(hit.position(), startOrigin);
 		int newWidth = Math.clamp((int) Math.round(corner.isLeftCorner() ? startWidth - local.x + cornerOffset.x : local.x + cornerOffset.x), 1, 10000);
 		int newHeight = Math.clamp((int) Math.round(corner.isTopCorner() ? startHeight - local.y + cornerOffset.y : local.y + cornerOffset.y), 1, 10000);
 		if(newWidth == width && newHeight == height) return;

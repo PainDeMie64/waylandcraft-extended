@@ -262,7 +262,10 @@ public class WindowDisplay {
 	 * The resulting vector is the (x, y) pixel location and the z value is the block distance normal to the plane.
 	 */
 	public Vec3 worldToLocal(Vec3 in) {
-		Vec3 origin = origin();
+		return worldToLocalFromOrigin(in, origin());
+	}
+
+	public Vec3 worldToLocalFromOrigin(Vec3 in, Vec3 origin) {
 		Vec3 localX = localX();
 		Vec3 localY = localY();
 		

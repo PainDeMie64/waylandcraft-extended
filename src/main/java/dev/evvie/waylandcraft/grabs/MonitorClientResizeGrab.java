@@ -51,11 +51,10 @@ public class MonitorClientResizeGrab extends PointerGrab {
 		if(!window.isValid()) this.drop();
 
 		wlc.cursorShape = CursorShape.SE_RESIZE;
-		window.moveOrigin(startOrigin);
 		PlaneHit hit = window.intersectPlane(pos, view);
 		if(hit == null) return;
 
-		Vec3 local = window.worldToLocal(hit.position());
+		Vec3 local = window.worldToLocalFromOrigin(hit.position(), startOrigin);
 		Size bounds = wlc.bridge.getOutputBounds();
 		int maxWidth = Math.max(1, bounds.width());
 		int maxHeight = Math.max(1, bounds.height());
