@@ -1,6 +1,7 @@
 package dev.evvie.waylandcraft.render;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWNativeEGL;
@@ -14,6 +15,7 @@ import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.textures.TextureFormat;
 
+import dev.evvie.waylandcraft.WaylandCraft;
 import dev.evvie.waylandcraft.mixin.IGlTextureMixin;
 
 public abstract class BufferTexture {
@@ -116,9 +118,14 @@ public abstract class BufferTexture {
 	}
 	
 	public static class DmabufTexture extends BufferTexture {
+
+		private static final int RETIRE_FRAMES = 8;
+		private static final ArrayList<RetiredDmabuf> retiredDmabufs = new ArrayList<RetiredDmabuf>();
 		
 		public final long handle;
 		private final long eglImage;
+		public boolean loggedRetainedAfterNativeGone = false;
+		private boolean retired = false;
 		
 		public DmabufTexture(long handle, long eglImage, int width, int height) {
 			super(width, height, BufferTexture.FORMAT_ARGB8888);
@@ -146,11 +153,45 @@ public abstract class BufferTexture {
 		}
 		
 		public void free() {
+			if(retired) return;
+			retired = true;
+			WaylandCraft.LOGGER.info("WLC dmabuf retire handle={} size={}x{}", this.handle, this.width, this.height);
+			retiredDmabufs.add(new RetiredDmabuf(this));
+		}
+
+		private void destroyNow() {
+			WaylandCraft.LOGGER.info("WLC dmabuf destroy handle={} size={}x{}", this.handle, this.width, this.height);
 			long eglDestroyImage = GLFW.glfwGetProcAddress("eglDestroyImage");
 			long display = GLFWNativeEGL.glfwGetEGLDisplay();
 			
 			JNI.invokePPI(display, this.eglImage, eglDestroyImage);
 			super.release();
+		}
+
+		public static void endFrame() {
+			ArrayList<RetiredDmabuf> keep = new ArrayList<RetiredDmabuf>();
+			for(RetiredDmabuf retired : retiredDmabufs) {
+				retired.frames++;
+				if(retired.frames < RETIRE_FRAMES) {
+					keep.add(retired);
+					continue;
+				}
+
+				retired.dmabuf.destroyNow();
+			}
+			retiredDmabufs.clear();
+			retiredDmabufs.addAll(keep);
+		}
+
+		private static final class RetiredDmabuf {
+
+			public final DmabufTexture dmabuf;
+			public int frames = 0;
+
+			public RetiredDmabuf(DmabufTexture dmabuf) {
+				this.dmabuf = dmabuf;
+			}
+
 		}
 		
 	}

@@ -694,6 +694,16 @@ pub extern "system" fn updateSurfaceData<'l>(
         let mut vp_data_guard = data.cached_state.get::<ViewportCachedState>();
         let vp_data = vp_data_guard.deref_mut().current();
 
+        unsafe {
+            env.call_method_unchecked(
+                &obj,
+                (WLCSurface_class, "clearViewportSrc", "()V"),
+                ReturnType::Primitive(Primitive::Void),
+                &[],
+            )
+            .unwrap();
+        }
+
         if let Some(src) = vp_data.src {
             unsafe {
                 env.call_method_unchecked(
@@ -721,6 +731,16 @@ pub extern "system" fn updateSurfaceData<'l>(
                 )
                 .unwrap();
             }
+        }
+
+        unsafe {
+            env.call_method_unchecked(
+                &obj,
+                (WLCSurface_class, "logStateIfChanged", "()V"),
+                ReturnType::Primitive(Primitive::Void),
+                &[],
+            )
+            .unwrap();
         }
     });
 }
@@ -1367,6 +1387,16 @@ pub extern "system" fn outputResize<'l>(
 
     instance.state.output.resize(width, height);
 
+    let x11_geometry = instance.state.output_x11_geometry();
+    for window in instance.state.x11_windows.iter_mut() {
+        if window.alive()
+            && WLCState::should_track_x11_window(window)
+            && window.is_fullscreen()
+        {
+            let _ = window.configure(Some(x11_geometry));
+        }
+    }
+
     for toplevel in instance.state.xdg_state.toplevel_surfaces() {
         toplevel.with_pending_state(|state| {
             let fullscreen =
@@ -1402,6 +1432,16 @@ pub extern "system" fn outputSetBounds<'l>(
     }
 
     instance.state.output.set_bounds(width, height);
+
+    let x11_geometry = instance.state.output_x11_geometry();
+    for window in instance.state.x11_windows.iter_mut() {
+        if window.alive()
+            && WLCState::should_track_x11_window(window)
+            && (window.is_maximized() || window.is_fullscreen())
+        {
+            let _ = window.configure(Some(x11_geometry));
+        }
+    }
 
     for toplevel in instance.state.xdg_state.toplevel_surfaces() {
         toplevel.with_pending_state(|state| {

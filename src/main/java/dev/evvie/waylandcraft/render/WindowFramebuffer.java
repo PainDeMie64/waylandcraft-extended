@@ -32,6 +32,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import dev.evvie.waylandcraft.WaylandCraft;
 import dev.evvie.waylandcraft.bridge.WLCSurface;
 import dev.evvie.waylandcraft.bridge.WLCSurface.ViewportSource;
+import dev.evvie.waylandcraft.render.BufferTexture.DmabufTexture;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.DynamicUniformStorage;
 import net.minecraft.client.renderer.DynamicUniformStorage.DynamicUniform;
@@ -79,6 +80,7 @@ public class WindowFramebuffer {
 	public static void endFrame() {
 		if(uniformStorage != null) uniformStorage.endFrame();
 		cleanupRetiredTargets();
+		DmabufTexture.endFrame();
 	}
 
 	private static void cleanupRetiredTargets() {
