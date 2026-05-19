@@ -1,4 +1,4 @@
-![WaylandCraft banner](/assets/title_scaled.png)
+![WaylandCraft Extended banner](/assets/title_extended_scaled.png)
 
 # WaylandCraft Extended
 
