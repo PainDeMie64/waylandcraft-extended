@@ -339,11 +339,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		Size size = bridge.getOutputSize();
 		if(size.width() != outputWidth || size.height() != outputHeight) {
 			bridge.resizeOutput(outputWidth, outputHeight);
-		}
-
-		Size bounds = bridge.getOutputBounds();
-		if(!inWMScreen && (bounds.width() != outputWidth || bounds.height() != outputHeight)) {
-			bridge.setOutputBounds(outputWidth, outputHeight);
+			if(!inWMScreen) bridge.setOutputBounds(outputWidth, outputHeight);
 		}
 	}
 	

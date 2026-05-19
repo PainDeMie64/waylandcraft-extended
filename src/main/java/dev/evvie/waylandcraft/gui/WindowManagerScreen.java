@@ -271,7 +271,6 @@ public class WindowManagerScreen extends Screen {
 		poseStack.scale(1 / guiScale, 1 / guiScale);
 		
 		if(renderToplevel != null) {
-			context.enableScissor(leftMargin, topMargin, leftMargin + areaWidth, topMargin + areaHeight);
 			prepareToplevel(renderToplevel);
 			
 			for(WindowElement element : windows) {
@@ -285,7 +284,6 @@ public class WindowManagerScreen extends Screen {
 				
 				RenderUtils.renderFramebuffer2D(context, buf, x, y, w, h);
 			}
-			context.disableScissor();
 		}
 		
 		poseStack.popMatrix();
@@ -309,6 +307,11 @@ public class WindowManagerScreen extends Screen {
 		
 		buttons.forEach((b) -> b.visible = true);
 		selector.visible = true;
+		
+		if(focused != null && focused.fullscreen) {
+			buttons.forEach((b) -> b.visible = false);
+			selector.visible = false;
+		}
 		
 		super.extractRenderState(context, i, j, f);
 	}
@@ -524,8 +527,14 @@ public class WindowManagerScreen extends Screen {
 		float x;
 		float y;
 		
-		x = leftMargin * guiScale + Math.max(0, areaWidth * guiScale / 2 - toplevel.geometry.width() / 2);
-		y = topMargin * guiScale + Math.max(0, areaHeight * guiScale / 2 - toplevel.geometry.height() / 2);
+		if(!toplevel.fullscreen) {
+			x = leftMargin * guiScale + Math.max(0, areaWidth * guiScale / 2 - toplevel.geometry.width() / 2);
+			y = topMargin * guiScale + Math.max(0, areaHeight * guiScale / 2 - toplevel.geometry.height() / 2);
+		}
+		else {
+			x = 0;
+			y = 0;
+		}
 		
 		x -= toplevel.geometry.x();
 		y -= toplevel.geometry.y();

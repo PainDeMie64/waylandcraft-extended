@@ -217,29 +217,14 @@ public class WaylandCraftBridge {
 	private void deleteNonExistingDmabufs(long[] remainingHandles) {
 		ArrayList<DmabufTexture> dmabufs_new = new ArrayList<DmabufTexture>();
 		for(DmabufTexture dmabuf : this.dmabufs) {
-			boolean existsNative = ArrayUtils.contains(remainingHandles, dmabuf.handle);
-			boolean referenced = isDmabufReferenced(dmabuf.handle);
-			if(existsNative || referenced) {
-				if(!existsNative && referenced && !dmabuf.loggedRetainedAfterNativeGone) {
-					WaylandCraft.LOGGER.info("WLC dmabuf keep referenced handle={} size={}x{}", dmabuf.handle, dmabuf.width, dmabuf.height);
-					dmabuf.loggedRetainedAfterNativeGone = true;
-				}
+			if(ArrayUtils.contains(remainingHandles, dmabuf.handle)) {
 				dmabufs_new.add(dmabuf);
 			}
 			else {
-				WaylandCraft.LOGGER.info("WLC dmabuf free handle={} size={}x{}", dmabuf.handle, dmabuf.width, dmabuf.height);
 				dmabuf.free();
 			}
 		}
 		this.dmabufs = dmabufs_new;
-	}
-
-	private boolean isDmabufReferenced(long handle) {
-		for(WLCSurface surface : this.surfaces) {
-			if(surface.referencesDmabuf(handle)) return true;
-		}
-		if(dndIcon != null && dndIcon.surface.referencesDmabuf(handle)) return true;
-		return false;
 	}
 
 	private void deleteUnvisitedSurfaces() {
@@ -415,7 +400,6 @@ public class WaylandCraftBridge {
 				updateSurfaceData(instance, surface);
 				calculateSubpos(surface);
 			}
-			updateGeometry(window);
 		}
 
 		for(WLCToplevel toplevel : toplevels) {
