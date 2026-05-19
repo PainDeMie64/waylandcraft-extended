@@ -427,6 +427,12 @@ public class WaylandCraftBridge {
 
 		// Render windows
 		for(WLCAbstractWindow window : allWindows) {
+			if(window.framebuffer != null && window.framebuffer.surfaceTree != window.getSurfaceTree()) {
+				window.framebuffer.destroy();
+				framebuffers.remove(window.framebuffer);
+				window.framebuffer = null;
+			}
+
 			if(window.framebuffer == null) {
 				window.framebuffer = new WindowFramebuffer(window.getSurfaceTree());
 				framebuffers.add(window.framebuffer);
@@ -445,11 +451,17 @@ public class WaylandCraftBridge {
 
 		// Cleanup unused framebuffers
 		ArrayList<WindowFramebuffer> usedFramebuffers = new ArrayList<WindowFramebuffer>();
-		for(WindowFramebuffer framebuffer : framebuffers) {
-			if(framebuffer.surfaceTree.isAlive()) {
-				usedFramebuffers.add(framebuffer);
+		for(WLCAbstractWindow window : allWindows) {
+			if(window.framebuffer != null && window.framebuffer.surfaceTree.isAlive()) {
+				usedFramebuffers.add(window.framebuffer);
 			}
-			else {
+		}
+		if(dndIcon != null && dndIcon.framebuffer != null && dndIcon.framebuffer.surfaceTree.isAlive()) {
+			usedFramebuffers.add(dndIcon.framebuffer);
+		}
+
+		for(WindowFramebuffer framebuffer : framebuffers) {
+			if(!usedFramebuffers.contains(framebuffer)) {
 				framebuffer.destroy();
 			}
 		}
@@ -472,6 +484,12 @@ public class WaylandCraftBridge {
 			geometry = new SurfaceGeometry(0, 0, window.surface.width(), window.surface.height());
 		}
 		else {
+			if(window instanceof WLCX11Window && window.surface != null && window.surface.width() > 0 && window.surface.height() > 0) {
+				data[0] = 0;
+				data[1] = 0;
+				data[2] = window.surface.width();
+				data[3] = window.surface.height();
+			}
 			geometry = new SurfaceGeometry(data[0], data[1], data[2], data[3]);
 		}
 
