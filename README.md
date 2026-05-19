@@ -65,7 +65,8 @@ for a development environment
 This compositor still has lots of issues and bugs. Use it at your own risk or whatever.
 
 ## Contribution Policy
-All contributions have to be made an accordance with the GPLv3 license (see `LICENSE`).
-Waylandcraft has a strong no generative AI policy for reasons of code and contribution quality as well as ethical and copyright concerns.
-All contributions have to be made without major LLM assistance in the final submitted code. You sign this off every time you submit code
-via a pull request or similar.
+All contributions have to be made in accordance with the GPLv3 license (see `LICENSE`).
+
+This fork may contain and accept AI-assisted changes. Contributors should review, test, and take responsibility for any submitted code.
+
+The upstream WaylandCraft project has a no-generative-AI contribution policy, so changes from this fork may not be suitable for submission upstream unless they are independently rewritten and reviewed under upstream's rules.
