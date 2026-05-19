@@ -32,6 +32,7 @@ public class WaylandHudRenderer {
 	private static final Identifier APP_LIST = Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "app-list");
 	private static final Identifier PINNED_TOPLEVEL = Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "pinned-toplevel");
 	private static final Identifier DND_ICON = Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "dnd-icon");
+	private static final Identifier ALPHA_SEAL = Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "alpha-seal");
 	
 	public WaylandHudRenderer(WaylandCraft wlc) {
 		this.wlc = wlc;
@@ -42,6 +43,11 @@ public class WaylandHudRenderer {
 		HudElementRegistry.attachElementAfter(VanillaHudElements.BOSS_BAR, APP_LIST, this::extractAppListRenderState);
 		HudElementRegistry.attachElementAfter(VanillaHudElements.BOSS_BAR, PINNED_TOPLEVEL, this::extractPinnedToplevelRenderState);
 		HudElementRegistry.attachElementAfter(VanillaHudElements.BOSS_BAR, DND_ICON, this::extractDNDIconRenderState);
+		HudElementRegistry.attachElementAfter(VanillaHudElements.SUBTITLES, ALPHA_SEAL, this::extractAlphaSealRenderState);
+	}
+
+	private void extractAlphaSealRenderState(GuiGraphicsExtractor context, DeltaTracker deltaTracker) {
+		context.fill(RenderUtils.ALPHA_SEAL, 0, 0, context.guiWidth(), context.guiHeight(), 0xffffffff);
 	}
 	
 	private void extractAppListRenderState(GuiGraphicsExtractor context, DeltaTracker deltaTracker) {

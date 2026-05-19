@@ -431,6 +431,10 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		return display != null && (activeChromeDisplay == display || isDisplayHighlighted(display));
 	}
 
+	public boolean isMonitorControlHovered(WindowDisplay display, MonitorControl control) {
+		return hoveredDisplay != null && hoveredDisplay.target == display && hoveredDisplay.control == control;
+	}
+
 	public void snapDisplayPlacement(WindowDisplay display) {
 		if(!snapMonitorPlacement) return;
 		display.pivot = new Vec3(Math.rint(display.pivot.x), Math.rint(display.pivot.y), Math.rint(display.pivot.z));
@@ -681,11 +685,17 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		case MOVE:
 			pointerGrabs.startExclusive(new MonitorMoveGrab(hit.target, button, hit.surfaceLocalOrigin));
 			break;
-		case RESIZE_MONITOR:
-			pointerGrabs.startExclusive(new MonitorResizeGrab(hit.target, button, hit.surfaceLocalOrigin));
+		case RESIZE_MONITOR_TOP_LEFT:
+		case RESIZE_MONITOR_TOP_RIGHT:
+		case RESIZE_MONITOR_BOTTOM_LEFT:
+		case RESIZE_MONITOR_BOTTOM_RIGHT:
+			pointerGrabs.startExclusive(new MonitorResizeGrab(hit.target, button, hit.surfaceLocalOrigin, hit.control));
 			break;
-		case RESIZE_APP:
-			if(!toplevel.fullscreen) pointerGrabs.startExclusive(new MonitorClientResizeGrab(hit.target, button, hit.surfaceLocalOrigin));
+		case RESIZE_APP_TOP_LEFT:
+		case RESIZE_APP_TOP_RIGHT:
+		case RESIZE_APP_BOTTOM_LEFT:
+		case RESIZE_APP_BOTTOM_RIGHT:
+			if(!toplevel.fullscreen) pointerGrabs.startExclusive(new MonitorClientResizeGrab(hit.target, button, hit.surfaceLocalOrigin, hit.control));
 			else editedDisplay = null;
 			break;
 		case CLOSE:

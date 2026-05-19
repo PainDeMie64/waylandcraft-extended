@@ -1,6 +1,7 @@
 package dev.evvie.waylandcraft.render;
 
 import java.util.function.Function;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import com.mojang.blaze3d.pipeline.BlendFunction;
@@ -112,6 +113,14 @@ public class RenderUtils {
 			.build();
 
 	public static final RenderType MONITOR_SOLID = RenderType.create("monitor_solid", RenderSetup.builder(MONITOR_SOLID_PIPELINE).createRenderSetup());
+
+	public static final RenderPipeline ALPHA_SEAL = RenderPipeline.builder(RenderPipelines.MATRICES_PROJECTION_SNIPPET)
+			.withLocation(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "pipeline/alpha_seal"))
+			.withVertexShader("core/position_color")
+			.withFragmentShader("core/position_color")
+			.withColorTargetState(new ColorTargetState(Optional.empty(), ColorTargetState.WRITE_ALPHA))
+			.withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS)
+			.build();
 	
 	public static final RenderPipeline WINDOW_BLIT = RenderPipeline.builder(RenderPipelines.MATRICES_PROJECTION_SNIPPET)
 			.withLocation(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "pipeline/window_blit"))

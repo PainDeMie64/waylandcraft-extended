@@ -24,6 +24,9 @@ public class WindowDisplay {
 	private static final double OUTLINE_THICKNESS = 4;
 	private static final double CONTROL_SIZE = 72;
 	private static final double CONTROL_GAP = 12;
+	private static final double CORNER_HANDLE = 54;
+	private static final double CORNER_INSET = 10;
+	private static final double CORNER_OUTSET = 22;
 	private static final int OUTLINE_COLOR = 0xffffffff;
 	private static final int CONTROL_BG = 0xff15181d;
 	private static final int CONTROL_ICON = 0xffffffff;
@@ -177,18 +180,29 @@ public class WindowDisplay {
 				if(!control.isButton()) continue;
 				ControlRect rect = controlRect(control);
 				boolean enabled = isControlEnabled(control);
-				int iconColor = enabled ? CONTROL_ICON : CONTROL_DISABLED;
-				RenderUtils.renderSolidRect(poseStack, ctx.submitNodeCollector(), localX, localY, rect.x(), rect.y(), rect.width(), rect.height(), 0, CONTROL_BG);
-				RenderUtils.renderSolidOutline(poseStack, ctx.submitNodeCollector(), localX, localY, rect.x(), rect.y(), rect.width(), rect.height(), 0, OUTLINE_THICKNESS, OUTLINE_COLOR);
-				int accent = switch(control) {
-				case RESIZE_MONITOR -> CONTROL_MONITOR_RESIZE;
-				case RESIZE_APP -> enabled ? CONTROL_APP_RESIZE : CONTROL_DISABLED;
-				case CLOSE -> CONTROL_CLOSE;
-				default -> OUTLINE_COLOR;
-				};
-				renderControlIcon(poseStack, ctx, localX, localY, rect, control, iconColor, accent);
+				boolean hovered = WaylandCraft.instance != null && WaylandCraft.instance.isMonitorControlHovered(this, control);
+				if(control.isCornerResize()) {
+					renderCornerHandle(poseStack, ctx, localX, localY, rect, control, enabled && hovered);
+				}
+				else {
+					int iconColor = enabled ? CONTROL_ICON : CONTROL_DISABLED;
+					RenderUtils.renderSolidRect(poseStack, ctx.submitNodeCollector(), localX, localY, rect.x(), rect.y(), rect.width(), rect.height(), 0, CONTROL_BG);
+					RenderUtils.renderSolidOutline(poseStack, ctx.submitNodeCollector(), localX, localY, rect.x(), rect.y(), rect.width(), rect.height(), 0, OUTLINE_THICKNESS, OUTLINE_COLOR);
+					int accent = control == MonitorControl.CLOSE ? CONTROL_CLOSE : OUTLINE_COLOR;
+					renderControlIcon(poseStack, ctx, localX, localY, rect, control, iconColor, accent);
+				}
 			}
 		}
+	}
+
+	private void renderCornerHandle(PoseStack poseStack, LevelRenderContext ctx, Vec3 localX, Vec3 localY, ControlRect rect, MonitorControl control, boolean hovered) {
+		int color = hovered ? (control.isMonitorResize() ? CONTROL_MONITOR_RESIZE : CONTROL_APP_RESIZE) : CONTROL_DISABLED;
+		double x1 = control.isLeftCorner() ? rect.x() : rect.x() + rect.width();
+		double y1 = control.isTopCorner() ? rect.y() : rect.y() + rect.height();
+		double x2 = control.isLeftCorner() ? rect.x() + rect.width() : rect.x();
+		double y2 = control.isTopCorner() ? rect.y() + rect.height() : rect.y();
+		RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x1, y1, x2, y1, 0, OUTLINE_THICKNESS + 1, color);
+		RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x1, y1, x1, y2, 0, OUTLINE_THICKNESS + 1, color);
 	}
 
 	private void renderControlIcon(PoseStack poseStack, LevelRenderContext ctx, Vec3 localX, Vec3 localY, ControlRect rect, MonitorControl control, int iconColor, int accentColor) {
@@ -210,19 +224,6 @@ public class WindowDisplay {
 			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.78, y + s * 0.50, x + s * 0.66, y + s * 0.38, z, t, iconColor);
 			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.78, y + s * 0.50, x + s * 0.66, y + s * 0.62, z, t, iconColor);
 			break;
-		case RESIZE_MONITOR:
-		case RESIZE_APP:
-			RenderUtils.renderSolidOutline(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.25, y + s * 0.25, s * 0.50, s * 0.50, z, t, accentColor);
-			if(control == MonitorControl.RESIZE_APP) {
-				RenderUtils.renderSolidOutline(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.34, y + s * 0.34, s * 0.32, s * 0.32, z, t * 0.75, iconColor);
-			}
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.44, y + s * 0.76, x + s * 0.76, y + s * 0.44, z, t, iconColor);
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.76, y + s * 0.44, x + s * 0.76, y + s * 0.62, z, t, iconColor);
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.76, y + s * 0.44, x + s * 0.58, y + s * 0.44, z, t, iconColor);
-			if(control == MonitorControl.RESIZE_APP && !isControlEnabled(control)) {
-				RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.20, y + s * 0.80, x + s * 0.80, y + s * 0.20, z, t, CONTROL_CLOSE);
-			}
-			break;
 		case CLOSE:
 			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.28, y + s * 0.28, x + s * 0.72, y + s * 0.72, z, t + 1, accentColor);
 			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.72, y + s * 0.28, x + s * 0.28, y + s * 0.72, z, t + 1, accentColor);
@@ -233,7 +234,7 @@ public class WindowDisplay {
 	}
 
 	private boolean isControlEnabled(MonitorControl control) {
-		return control != MonitorControl.RESIZE_APP || !(window instanceof WLCToplevel toplevel) || !toplevel.fullscreen;
+		return !control.isAppResize() || !(window instanceof WLCToplevel toplevel) || !toplevel.fullscreen;
 	}
 
 	private FitRect presentationFit() {
@@ -353,20 +354,26 @@ public class WindowDisplay {
 	}
 
 	private ControlRect controlRect(MonitorControl control) {
-		double totalWidth = CONTROL_SIZE * 4 + CONTROL_GAP * 3;
+		double totalWidth = CONTROL_SIZE * 2 + CONTROL_GAP;
 		double startX = width / 2.0 - totalWidth / 2.0;
 		double y = -CONTROL_SIZE - CONTROL_GAP;
 		return switch(control) {
 		case MOVE -> new ControlRect(startX, y, CONTROL_SIZE, CONTROL_SIZE);
-		case RESIZE_MONITOR -> new ControlRect(startX + CONTROL_SIZE + CONTROL_GAP, y, CONTROL_SIZE, CONTROL_SIZE);
-		case RESIZE_APP -> new ControlRect(startX + (CONTROL_SIZE + CONTROL_GAP) * 2, y, CONTROL_SIZE, CONTROL_SIZE);
-		case CLOSE -> new ControlRect(startX + (CONTROL_SIZE + CONTROL_GAP) * 3, y, CONTROL_SIZE, CONTROL_SIZE);
+		case CLOSE -> new ControlRect(startX + CONTROL_SIZE + CONTROL_GAP, y, CONTROL_SIZE, CONTROL_SIZE);
+		case RESIZE_APP_TOP_LEFT -> new ControlRect(CORNER_INSET, CORNER_INSET, CORNER_HANDLE, CORNER_HANDLE);
+		case RESIZE_APP_TOP_RIGHT -> new ControlRect(width - CORNER_INSET - CORNER_HANDLE, CORNER_INSET, CORNER_HANDLE, CORNER_HANDLE);
+		case RESIZE_APP_BOTTOM_LEFT -> new ControlRect(CORNER_INSET, height - CORNER_INSET - CORNER_HANDLE, CORNER_HANDLE, CORNER_HANDLE);
+		case RESIZE_APP_BOTTOM_RIGHT -> new ControlRect(width - CORNER_INSET - CORNER_HANDLE, height - CORNER_INSET - CORNER_HANDLE, CORNER_HANDLE, CORNER_HANDLE);
+		case RESIZE_MONITOR_TOP_LEFT -> new ControlRect(-CORNER_OUTSET, -CORNER_OUTSET, CORNER_HANDLE, CORNER_HANDLE);
+		case RESIZE_MONITOR_TOP_RIGHT -> new ControlRect(width + CORNER_OUTSET - CORNER_HANDLE, -CORNER_OUTSET, CORNER_HANDLE, CORNER_HANDLE);
+		case RESIZE_MONITOR_BOTTOM_LEFT -> new ControlRect(-CORNER_OUTSET, height + CORNER_OUTSET - CORNER_HANDLE, CORNER_HANDLE, CORNER_HANDLE);
+		case RESIZE_MONITOR_BOTTOM_RIGHT -> new ControlRect(width + CORNER_OUTSET - CORNER_HANDLE, height + CORNER_OUTSET - CORNER_HANDLE, CORNER_HANDLE, CORNER_HANDLE);
 		default -> new ControlRect(0, 0, 0, 0);
 		};
 	}
 
 	private ControlRect chromeRect() {
-		double totalWidth = CONTROL_SIZE * 4 + CONTROL_GAP * 3;
+		double totalWidth = CONTROL_SIZE * 2 + CONTROL_GAP;
 		double x = Math.min(-OVERLAY_PADDING, width / 2.0 - totalWidth / 2.0);
 		double y = -CONTROL_SIZE - CONTROL_GAP;
 		double right = Math.max(width + OVERLAY_PADDING, width / 2.0 + totalWidth / 2.0);
@@ -482,10 +489,41 @@ public class WindowDisplay {
 	}
 
 	public static enum MonitorControl {
-		NONE, CHROME, MOVE, RESIZE_MONITOR, RESIZE_APP, CLOSE;
+		NONE,
+		CHROME,
+		MOVE,
+		CLOSE,
+		RESIZE_MONITOR_TOP_LEFT,
+		RESIZE_MONITOR_TOP_RIGHT,
+		RESIZE_MONITOR_BOTTOM_LEFT,
+		RESIZE_MONITOR_BOTTOM_RIGHT,
+		RESIZE_APP_TOP_LEFT,
+		RESIZE_APP_TOP_RIGHT,
+		RESIZE_APP_BOTTOM_LEFT,
+		RESIZE_APP_BOTTOM_RIGHT;
 
 		public boolean isButton() {
-			return this == MOVE || this == RESIZE_MONITOR || this == RESIZE_APP || this == CLOSE;
+			return this == MOVE || this == CLOSE || isCornerResize();
+		}
+
+		public boolean isCornerResize() {
+			return isMonitorResize() || isAppResize();
+		}
+
+		public boolean isMonitorResize() {
+			return this == RESIZE_MONITOR_TOP_LEFT || this == RESIZE_MONITOR_TOP_RIGHT || this == RESIZE_MONITOR_BOTTOM_LEFT || this == RESIZE_MONITOR_BOTTOM_RIGHT;
+		}
+
+		public boolean isAppResize() {
+			return this == RESIZE_APP_TOP_LEFT || this == RESIZE_APP_TOP_RIGHT || this == RESIZE_APP_BOTTOM_LEFT || this == RESIZE_APP_BOTTOM_RIGHT;
+		}
+
+		public boolean isLeftCorner() {
+			return this == RESIZE_MONITOR_TOP_LEFT || this == RESIZE_MONITOR_BOTTOM_LEFT || this == RESIZE_APP_TOP_LEFT || this == RESIZE_APP_BOTTOM_LEFT;
+		}
+
+		public boolean isTopCorner() {
+			return this == RESIZE_MONITOR_TOP_LEFT || this == RESIZE_MONITOR_TOP_RIGHT || this == RESIZE_APP_TOP_LEFT || this == RESIZE_APP_TOP_RIGHT;
 		}
 	}
 	
