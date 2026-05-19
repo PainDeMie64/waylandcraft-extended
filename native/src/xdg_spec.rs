@@ -36,10 +36,7 @@ impl XDGSpecHelper {
     fn to_raw(&self, entry: &DesktopEntry) -> RawDesktopEntry {
         let icon = self.resolve_icon_path(entry);
         let mut visible = true;
-        if entry.hidden()
-            || entry.no_display()
-            || entry.only_show_in().is_some_and(|v| !v.is_empty())
-        {
+        if entry.hidden() || entry.no_display() {
             visible = false;
         }
 

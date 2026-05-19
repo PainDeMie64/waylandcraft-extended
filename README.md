@@ -6,7 +6,7 @@
 
 This fork focuses on running more Linux desktop software inside Minecraft, especially X11 apps through Xwayland, Steam, Proton-launched games, and richer in-world monitor controls.
 
-[Upstream WaylandCraft](https://github.com/EVV1E/waylandcraft) remains the source for the original project, base documentation, screenshots, build instructions, system requirements, and general usage. This README documents what is different in this fork.
+[Upstream WaylandCraft](https://github.com/EVV1E/waylandcraft) remains the source for the original project, base documentation, screenshots, build instructions, system requirements, general usage, and the original [Modrinth project](https://modrinth.com/mod/waylandcraft). This README documents what is different in this fork.
 
 ## What This Fork Adds
 
