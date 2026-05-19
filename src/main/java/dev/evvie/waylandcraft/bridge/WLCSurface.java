@@ -54,6 +54,10 @@ public class WLCSurface {
 		return this.handle;
 	}
 	
+	public long getDebugHandle() {
+		return this.handle;
+	}
+
 	protected long takeHandle() {
 		long old = this.handle;
 		this.handle = 0;

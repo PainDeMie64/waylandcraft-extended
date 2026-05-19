@@ -72,6 +72,16 @@ mod svg;
 mod utils;
 mod xdg_spec;
 
+fn debug_x11_enabled() -> bool {
+    std::env::var("WAYLANDCRAFT_DEBUG_X11")
+        .map(|value| {
+            value == "1"
+                || value.eq_ignore_ascii_case("true")
+                || value.eq_ignore_ascii_case("yes")
+        })
+        .unwrap_or(false)
+}
+
 pub(crate) struct WaylandCraft<'a> {
     pub state: WLCState,
     pub event_loop: EventLoop<'a, WLCState>,
@@ -187,11 +197,30 @@ impl WLCState {
         }
 
         if !self.x11_windows.iter().any(|w| **w == window) {
+            if debug_x11_enabled() {
+                eprintln!(
+                    "WLC X11 track window title={:?} class={:?} geometry={:?} type={:?}",
+                    window.title(),
+                    window.class(),
+                    window.geometry(),
+                    window.window_type()
+                );
+            }
             self.x11_windows.push(Box::new(window));
         }
     }
 
     fn untrack_x11_window(&mut self, window: &X11Surface) {
+        if debug_x11_enabled()
+            && self.x11_windows.iter().any(|w| **w == *window)
+        {
+            eprintln!(
+                "WLC X11 untrack window title={:?} class={:?} geometry={:?}",
+                window.title(),
+                window.class(),
+                window.geometry()
+            );
+        }
         self.x11_windows.retain(|w| **w != *window);
     }
 
@@ -436,6 +465,15 @@ impl XwmHandler for WLCState {
     }
 
     fn map_window_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        if debug_x11_enabled() {
+            eprintln!(
+                "WLC X11 map request title={:?} class={:?} geometry={:?} type={:?}",
+                window.title(),
+                window.class(),
+                window.geometry(),
+                window.window_type()
+            );
+        }
         let _ = window.set_mapped(true);
         self.track_x11_window(window.clone());
         let _ = window
@@ -450,6 +488,15 @@ impl XwmHandler for WLCState {
     }
 
     fn unmapped_window(&mut self, _xwm: XwmId, window: X11Surface) {
+        if debug_x11_enabled() {
+            eprintln!(
+                "WLC X11 unmapped title={:?} class={:?} geometry={:?} override_redirect={}",
+                window.title(),
+                window.class(),
+                window.geometry(),
+                window.is_override_redirect()
+            );
+        }
         self.untrack_x11_window(&window);
         if !window.is_override_redirect() {
             let _ = window.set_mapped(false);
@@ -457,6 +504,14 @@ impl XwmHandler for WLCState {
     }
 
     fn destroyed_window(&mut self, _xwm: XwmId, window: X11Surface) {
+        if debug_x11_enabled() {
+            eprintln!(
+                "WLC X11 destroyed title={:?} class={:?} geometry={:?}",
+                window.title(),
+                window.class(),
+                window.geometry()
+            );
+        }
         self.untrack_x11_window(&window);
     }
 
@@ -483,6 +538,18 @@ impl XwmHandler for WLCState {
         if let Some(h) = h {
             geometry.size.h = h.max(1) as i32;
         }
+        if debug_x11_enabled() {
+            eprintln!(
+                "WLC X11 configure request title={:?} class={:?} requested=({:?},{:?},{:?},{:?}) applied={:?}",
+                window.title(),
+                window.class(),
+                x,
+                y,
+                w,
+                h,
+                self.clamped_x11_geometry(geometry)
+            );
+        }
         let _ = window.configure(Some(self.clamped_x11_geometry(geometry)));
     }
 
@@ -493,6 +560,15 @@ impl XwmHandler for WLCState {
         _geometry: Rectangle<i32, Logical>,
         _above: Option<u32>,
     ) {
+        if debug_x11_enabled() {
+            eprintln!(
+                "WLC X11 configure notify title={:?} class={:?} mapped={} geometry={:?}",
+                window.title(),
+                window.class(),
+                window.is_mapped(),
+                window.geometry()
+            );
+        }
         if window.is_mapped() && Self::should_track_x11_window(&window) {
             self.track_x11_window(window);
         }
@@ -508,6 +584,14 @@ impl XwmHandler for WLCState {
     }
 
     fn fullscreen_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        if debug_x11_enabled() {
+            eprintln!(
+                "WLC X11 fullscreen request title={:?} class={:?} output={:?}",
+                window.title(),
+                window.class(),
+                self.output_x11_geometry()
+            );
+        }
         let _ = window.set_fullscreen(true);
         let _ = window.configure(Some(self.output_x11_geometry()));
     }
@@ -517,6 +601,13 @@ impl XwmHandler for WLCState {
     }
 
     fn minimize_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        if debug_x11_enabled() {
+            eprintln!(
+                "WLC X11 minimize request title={:?} class={:?}",
+                window.title(),
+                window.class()
+            );
+        }
         let _ = window.set_hidden(true);
         self.requests.x11_minimize.push(window);
     }

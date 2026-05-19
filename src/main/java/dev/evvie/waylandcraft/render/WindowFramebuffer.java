@@ -42,7 +42,10 @@ import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.resources.Identifier;
 
 public class WindowFramebuffer {
-	
+
+	private static final int RETIRE_FRAMES = 8;
+	private static final ArrayList<RetiredTarget> retiredTargets = new ArrayList<RetiredTarget>();
+
 	public static final RenderPipeline WINDOW_PIPELINE = RenderPipelines.register(
 		RenderPipeline.builder()
 		.withLocation(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "pipeline/window"))
@@ -55,95 +58,116 @@ public class WindowFramebuffer {
 		.withCull(false)
 		.build()
 	);
-	
+
 	private static DynamicUniformStorage<WindowInfoUniform> uniformStorage = null;
-	
+
 	public final WLCSurface surfaceTree;
 	private RenderTarget target = null;
 	private FramebufferTexture texture = null;
 	private Identifier location = null;
-	
+
 	private int width = 0;
 	private int height = 0;
 	private int xoff;
 	private int yoff;
-	
+	private int generation = 0;
+
 	public WindowFramebuffer(WLCSurface surfaceTree) {
 		this.surfaceTree = surfaceTree;
 	}
-	
+
 	public static void endFrame() {
 		if(uniformStorage != null) uniformStorage.endFrame();
+		cleanupRetiredTargets();
 	}
-	
+
+	private static void cleanupRetiredTargets() {
+		TextureManager manager = Minecraft.getInstance().getTextureManager();
+		ArrayList<RetiredTarget> keep = new ArrayList<RetiredTarget>();
+		for(RetiredTarget retired : retiredTargets) {
+			retired.frames++;
+			if(retired.frames < RETIRE_FRAMES) {
+				keep.add(retired);
+				continue;
+			}
+
+			WaylandCraft.LOGGER.info("WLC framebuffer retire destroy location={} size={}x{} age={}", retired.location, retired.width, retired.height, retired.frames);
+			manager.register(retired.location, manager.getTexture(MissingTextureAtlasSprite.getLocation()));
+			retired.target.destroyBuffers();
+		}
+		retiredTargets.clear();
+		retiredTargets.addAll(keep);
+	}
+
 	private static void ensureUniformStorage() {
 		if(uniformStorage == null) {
 			uniformStorage = new DynamicUniformStorage<WindowInfoUniform>("window framebuffer", WindowInfoUniform.SIZE, 2);
 		}
 	}
-	
+
 	private void updateTarget() {
 		int minX = 0;
 		int minY = 0;
 		int maxX = 0;
 		int maxY = 0;
-		
+
 		for(WLCSurface surface = surfaceTree; surface != null; surface = surface.getNextChild()) {
 			int sMinX = surface.xSubpos;
 			int sMinY = surface.ySubpos;
 			int sMaxX = sMinX + surface.width();
 			int sMaxY = sMinY + surface.height();
-			
+
 			if(sMinX < minX) minX = sMinX;
 			if(sMinY < minY) minY = sMinY;
 			if(sMaxX > maxX) maxX = sMaxX;
 			if(sMaxY > maxY) maxY = sMaxY;
 		}
-		
+
 		int prevWidth = width;
 		int prevHeight = height;
-		
+
 		this.xoff = -minX;
 		this.yoff = -minY;
 		this.width = maxX - minX;
 		this.height = maxY - minY;
-		
+
 		if(width <= 0 || height <= 0) {
 			destroy();
 			return;
 		}
-		
+
 		if(width != prevWidth || height != prevHeight) destroy();
-		
+
 		if(target == null) {
+			generation++;
 			target = new TextureTarget(name(), width, height, false);
 		}
-		
+
 		if(texture == null) registerTexture();
 	}
-	
+
 	private String name() {
-		return "wayland-framebuffer-" + this.hashCode() + "-" + surfaceTree.hashCode();
+		return "wayland-framebuffer-" + this.hashCode() + "-" + surfaceTree.hashCode() + "-" + generation;
 	}
-	
+
 	public void render() {
 		updateTarget();
 		if(target == null) return;
-		
+
 		PoseStack poseStack = new PoseStack();
 		poseStack.translate(-1.0, -1.0, 0.0);
 		poseStack.scale(2.0f / width, 2.0f / height, 1.0f);
-		
+
 		ArrayList<CompiledBufferDraw> elements = new ArrayList<>();
 		for(WLCSurface surface = surfaceTree; surface != null; surface = surface.getNextChild()) {
 			BufferDraw draw = bakeSurface(surface, xoff + surface.xSubpos, yoff + surface.ySubpos);
 			if(draw != null) elements.add(draw.compile());
 		}
-		
+
 		ensureUniformStorage();
 		GpuBufferSlice alphaUniforms = uniformStorage.writeUniform(new WindowInfoUniform(poseStack.last().pose(), true));
 		GpuBufferSlice opaqueUniforms = uniformStorage.writeUniform(new WindowInfoUniform(poseStack.last().pose(), false));
-		
+
 		try {
 			try(RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(() -> "window framebuffer", target.getColorTextureView(), OptionalInt.of(0x00000000))) {
 				pass.setPipeline(WINDOW_PIPELINE);
@@ -162,19 +186,19 @@ public class WindowFramebuffer {
 			}
 		}
 	}
-	
+
 	private BufferDraw bakeSurface(WLCSurface surface, float x, float y) {
 		BufferTexture buf = surface.getBuffer();
 		if(buf == null) return null;
-		
+
 		float w = surface.width();
 		float h = surface.height();
-		
+
 		float crop_x1 = 0.0f;
 		float crop_y1 = 0.0f;
 		float crop_x2 = 1.0f;
 		float crop_y2 = 1.0f;
-		
+
 		ViewportSource src = surface.getViewportSource();
 		if(src != null) {
 			crop_x1 = (float) (src.x / buf.width);
@@ -182,15 +206,15 @@ public class WindowFramebuffer {
 			crop_x2 = (float) ((src.x + src.width) / buf.width);
 			crop_y2 = (float) ((src.y + src.height) / buf.height);
 		}
-		
+
 		return new BufferDraw(buf.textureView, x, y, w, h, crop_x1, crop_y1, crop_x2, crop_y2, buf.format != BufferTexture.FORMAT_XRGB8888);
 	}
-	
+
 	private static record CompiledBufferDraw(GpuTextureView textureView, GpuBuffer vertexBuffer, GpuBuffer indexBuffer, int indexCount, VertexFormat.IndexType indexType, boolean alpha) {
 	}
-	
+
 	private static record BufferDraw(GpuTextureView textureView, float x, float y, float w, float h, float u1, float v1, float u2, float v2, boolean alpha) {
-		
+
 		public CompiledBufferDraw compile() {
 			try(ByteBufferBuilder byteBuilder = new ByteBufferBuilder(DefaultVertexFormat.POSITION_TEX.getVertexSize() * 4)) {
 				BufferBuilder builder = new BufferBuilder(byteBuilder, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
@@ -198,7 +222,7 @@ public class WindowFramebuffer {
 				builder.addVertex(x + w, y, 0).setUv(u2, v1);
 				builder.addVertex(x + w, y + h, 0).setUv(u2, v2);
 				builder.addVertex(x, y + h, 0).setUv(u1, v2);
-				
+
 				try(MeshData mesh = builder.buildOrThrow()) {
 					int indexCount = mesh.drawState().indexCount();
 					RenderSystem.AutoStorageIndexBuffer indices = RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS);
@@ -208,82 +232,102 @@ public class WindowFramebuffer {
 				}
 			}
 		}
-		
+
 	}
-	
+
 	private void registerTexture() {
 		if(target == null) return;
-		
+
 		texture = new FramebufferTexture(getTextureView());
 		location = Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, name());
-		
+
 		Minecraft.getInstance().getTextureManager().register(location, texture);
+		WaylandCraft.LOGGER.info("WLC framebuffer register location={} surface={} generation={} size={}x{} offset={}x{}", location, surfaceTree.getDebugHandle(), generation, width, height, xoff, yoff);
 	}
-	
-	private void unregisterTexture() {
-		TextureManager manager = Minecraft.getInstance().getTextureManager();
-		manager.register(location, manager.getTexture(MissingTextureAtlasSprite.getLocation()));
+
+	public void destroy() {
+		if(target != null) {
+			if(texture != null && location != null) {
+				WaylandCraft.LOGGER.info("WLC framebuffer retire location={} surface={} generation={} size={}x{}", location, surfaceTree.getDebugHandle(), generation, width, height);
+				retiredTargets.add(new RetiredTarget(target, location, width, height));
+			}
+			else {
+				target.destroyBuffers();
+			}
+		}
+		target = null;
 		texture = null;
 		location = null;
 	}
-	
-	public void destroy() {
-		if(target != null) target.destroyBuffers();
-		if(texture != null) unregisterTexture();
-		target = null;
-	}
-	
+
 	public int getWidth() {
 		return width;
 	}
-	
+
 	public int getHeight() {
 		return height;
 	}
-	
+
 	public int getXOff() {
 		return xoff;
 	}
-	
+
 	public int getYOff() {
 		return yoff;
 	}
-	
+
 	public GpuTextureView getTextureView() {
 		if(target == null) return null;
 		return target.getColorTextureView();
 	}
-	
+
 	public Identifier getTextureLocation() {
 		return location;
 	}
-	
+
 	public boolean isValid() {
 		return target != null;
 	}
-	
+
 	private static class FramebufferTexture extends AbstractTexture {
-		
+
 		public FramebufferTexture(GpuTextureView textureView) {
 			this.textureView = textureView;
 			this.texture = textureView.texture();
 		}
-		
+
 		@Override
 		public void close() {
 		}
-		
+
 	}
-	
+
+	private static final class RetiredTarget {
+
+		public final RenderTarget target;
+		public final Identifier location;
+		public final int width;
+		public final int height;
+		public int frames = 0;
+
+		public RetiredTarget(RenderTarget target, Identifier location, int width, int height) {
+			this.target = target;
+			this.location = location;
+			this.width = width;
+			this.height = height;
+		}
+
+	}
+
 	private static record WindowInfoUniform(Matrix4fc mat, boolean alpha) implements DynamicUniform {
-		
+
 		public static final int SIZE = new Std140SizeCalculator().putMat4f().putFloat().get();
-		
+
 		@Override
 		public void write(ByteBuffer byteBuffer) {
 			Std140Builder.intoBuffer(byteBuffer).putMat4f(mat).putFloat(alpha ? 0.0f : 1.0f);
 		}
-		
+
 	}
-	
+
 }

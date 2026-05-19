@@ -117,10 +117,12 @@ public class WaylandCraftBridge {
 		if(surfaceHandle != 0) {
 			WLCSurface surface = getOrCreateSurface(surfaceHandle);
 			window.surface = surface;
+			window.debugSurfaceHandle = surface.getDebugHandle();
 		}
 
 		x11Windows.add(window);
 		toplevels.add(window);
+		WaylandCraft.LOGGER.info("WLC X11 window created handle={} surface={}", handle, surfaceHandle);
 		return window;
 	}
 
@@ -192,6 +194,7 @@ public class WaylandCraftBridge {
 			}
 			else {
 				this.toplevels.remove(window);
+				WaylandCraft.LOGGER.info("WLC X11 window removed handle={} title={} appID={}", window.getHandle(), window.title, window.appID);
 				window.takeHandle();
 			}
 		}
@@ -327,6 +330,10 @@ public class WaylandCraftBridge {
 
 			WLCSurface surface = getOrCreateSurface(surfaceHandle);
 			window.surface = surface;
+			if(window.debugSurfaceHandle != surface.getDebugHandle()) {
+				WaylandCraft.LOGGER.info("WLC X11 surface changed window={} oldSurface={} newSurface={} title={} appID={}", handle, window.debugSurfaceHandle, surface.getDebugHandle(), window.title, window.appID);
+				window.debugSurfaceHandle = surface.getDebugHandle();
+			}
 
 			WLCSurface root = window.getSurfaceTree();
 			window.lastChild = updateSurfaceTree(root);
@@ -485,6 +492,16 @@ public class WaylandCraftBridge {
 		}
 		else {
 			if(window instanceof WLCX11Window && window.surface != null && window.surface.width() > 0 && window.surface.height() > 0) {
+				WLCX11Window x11 = (WLCX11Window) window;
+				if(x11.debugNativeX != data[0] || x11.debugNativeY != data[1] || x11.debugNativeWidth != data[2] || x11.debugNativeHeight != data[3] || x11.debugSurfaceWidth != window.surface.width() || x11.debugSurfaceHeight != window.surface.height()) {
+					WaylandCraft.LOGGER.info("WLC X11 geometry window={} native={}x{}+{}+{} surface={}x{} title={} appID={}", window.getHandle(), data[2], data[3], data[0], data[1], window.surface.width(), window.surface.height(), x11.title, x11.appID);
+					x11.debugNativeX = data[0];
+					x11.debugNativeY = data[1];
+					x11.debugNativeWidth = data[2];
+					x11.debugNativeHeight = data[3];
+					x11.debugSurfaceWidth = window.surface.width();
+					x11.debugSurfaceHeight = window.surface.height();
+				}
 				data[0] = 0;
 				data[1] = 0;
 				data[2] = window.surface.width();
