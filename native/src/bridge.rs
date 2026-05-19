@@ -4,7 +4,10 @@ use crate::egl::{EGLDisplay, EGLHelper};
 use crate::svg::render_svg;
 use crate::utils::get_time;
 use crate::xdg_spec::RawDesktopEntry;
-use crate::{WLCState, WaylandCraft, wlc_init};
+use crate::{
+    WLCState, WaylandCraft, debug_input_enabled, set_debug_input_enabled,
+    wlc_init,
+};
 use jni::{
     JNIEnv,
     objects::{JClass, JObject, JString, JValue},
@@ -98,6 +101,16 @@ pub extern "system" fn init<'l>(
     let ptr: *mut WaylandCraft = Box::into_raw(instance_box);
     let addr: u64 = ptr.addr() as u64;
     addr as i64
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    setNativeDebugInput")]
+pub extern "system" fn setNativeDebugInput<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    enabled: jboolean,
+) {
+    set_debug_input_enabled(enabled == JNI_TRUE);
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
@@ -1032,6 +1045,9 @@ pub extern "system" fn pointerMotion<'l>(
     y: jdouble,
 ) {
     let instance = jptr_to_instance(ptr);
+    if debug_input_enabled() {
+        println!("WLC input bridge pointerMotion x={x:.2} y={y:.2}");
+    }
     instance.state.seat.pointer_motion(x, y);
 }
 
@@ -1048,6 +1064,21 @@ pub extern "system" fn pointerMotionFocus<'l>(
     let instance = jptr_to_instance(ptr);
     let surface = jptr_to_wlsurface(handle);
 
+    if debug_input_enabled() {
+        let owner = surface
+            .as_ref()
+            .and_then(|surface| {
+                instance.state.describe_x11_surface_owner(surface)
+            })
+            .unwrap_or_else(|| "native-or-none".into());
+        let target = surface
+            .as_ref()
+            .map(|surface| format!("{:?}", surface.id()))
+            .unwrap_or_else(|| "none".into());
+        println!(
+            "WLC input bridge pointerMotionFocus target={target} owner={owner} x={x:.2} y={y:.2}"
+        );
+    }
     instance.state.seat.pointer_motion_focus(surface, x, y);
 }
 
@@ -1062,6 +1093,9 @@ pub extern "system" fn pointerRelMotion<'l>(
 ) {
     let instance = jptr_to_instance(ptr);
 
+    if debug_input_enabled() {
+        println!("WLC input bridge pointerRelMotion dx={dx:.2} dy={dy:.2}");
+    }
     instance.state.seat.pointer_relative_motion(dx, dy);
 }
 
@@ -1079,6 +1113,16 @@ pub extern "system" fn maybePointerLock<'l>(
         None => return 0,
     };
 
+    if debug_input_enabled() {
+        let owner = instance
+            .state
+            .describe_x11_surface_owner(&surface)
+            .unwrap_or_else(|| "native".into());
+        println!(
+            "WLC input bridge maybePointerLock target={:?} owner={owner}",
+            surface.id()
+        );
+    }
     instance.state.seat.pointer_lock(&surface) as jboolean
 }
 
@@ -1091,6 +1135,9 @@ pub extern "system" fn pointerUnlock<'l>(
 ) {
     let instance = jptr_to_instance(ptr);
 
+    if debug_input_enabled() {
+        println!("WLC input bridge pointerUnlock");
+    }
     instance.state.seat.pointer_unlock()
 }
 
@@ -1102,6 +1149,9 @@ pub extern "system" fn pointerLeave<'l>(
     ptr: jlong,
 ) {
     let instance = jptr_to_instance(ptr);
+    if debug_input_enabled() {
+        println!("WLC input bridge pointerLeave");
+    }
     instance.state.seat.pointer_motion_focus(None, 0.0, 0.0);
 }
 
@@ -1122,6 +1172,11 @@ pub extern "system" fn pointerButton<'l>(
         _ => unreachable!(),
     };
 
+    if debug_input_enabled() {
+        println!(
+            "WLC input bridge pointerButton button={button} state={state:?}"
+        );
+    }
     instance.state.seat.pointer_button(button as u32, state) as jint
 }
 
@@ -1144,6 +1199,9 @@ pub extern "system" fn pointerAxis<'l>(
         }
     };
 
+    if debug_input_enabled() {
+        println!("WLC input bridge pointerAxis axis={axis:?} value={value:.2}");
+    }
     instance.state.seat.pointer_axis(axis, value);
 }
 
@@ -1580,6 +1638,28 @@ pub extern "system" fn x11WindowAppID<'l>(
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    x11WindowID")]
+pub extern "system" fn x11WindowID<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong,
+) -> jlong {
+    let window = jptr_to_x11window(handle);
+    window.window_id() as jlong
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    x11WindowMappedID")]
+pub extern "system" fn x11WindowMappedID<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong,
+) -> jlong {
+    let window = jptr_to_x11window(handle);
+    window.mapped_window_id().unwrap_or(0) as jlong
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
     x11WindowGeometry")]
 pub extern "system" fn x11WindowGeometry<'l>(
     env: JNIEnv<'l>,
@@ -1753,6 +1833,12 @@ pub extern "system" fn x11WindowFocus<'l>(
     let window = jptr_to_x11window(handle).clone();
     let surface = window.wl_surface();
 
+    if debug_input_enabled() {
+        println!(
+            "WLC input bridge x11WindowFocus {}",
+            instance.state.describe_x11_window(&window)
+        );
+    }
     if let Some(surface) = surface {
         let client = surface.client();
         instance.state.data.update_clipboard_client(client);
@@ -1761,6 +1847,19 @@ pub extern "system" fn x11WindowFocus<'l>(
 
     for x11_window in instance.state.x11_windows.iter() {
         let _ = x11_window.set_activated(**x11_window == window);
+    }
+
+    if let Some(mut xwm) = instance.state.xwm.take() {
+        if debug_input_enabled() {
+            println!(
+                "WLC input bridge x11WindowFocus raise {}",
+                instance.state.describe_x11_window(&window)
+            );
+        }
+        if let Err(err) = xwm.raise_window(&window) {
+            eprintln!("WLC X11 raise failed: {err}");
+        }
+        instance.state.xwm = Some(xwm);
     }
 
     if let Some(keyboard) = instance.state.xwayland_keyboard.clone() {

@@ -3,6 +3,8 @@ package dev.evvie.waylandcraft.bridge;
 public class WLCX11Window extends WLCToplevel {
 
 	public SurfaceGeometry nativeGeometry = null;
+	public long x11WindowID = 0;
+	public long x11MappedWindowID = 0;
 	protected long debugSurfaceHandle = Long.MIN_VALUE;
 	protected int debugNativeX = Integer.MIN_VALUE;
 	protected int debugNativeY = Integer.MIN_VALUE;

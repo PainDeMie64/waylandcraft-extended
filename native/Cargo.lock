@@ -1553,6 +1553,7 @@ dependencies = [
  "resvg",
  "shlex",
  "smithay",
+ "x11rb",
  "xkbcommon 0.8.0",
 ]
 

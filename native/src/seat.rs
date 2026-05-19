@@ -1,5 +1,5 @@
-use crate::WLCState;
 use crate::utils::{get_time, new_serial, to_fixed2};
+use crate::{WLCState, debug_input_enabled};
 use smithay::{
     reexports::{
         wayland_protocols::wp::cursor_shape::v1::server::{
@@ -92,6 +92,18 @@ pub struct WLCKeyboardData {
 }
 
 type WLCKeyboard = Arc<Mutex<WLCKeyboardData>>;
+
+fn resource_label<R: Resource>(resource: &R) -> String {
+    let client = resource
+        .client()
+        .map(|client| format!("{:?}", client.id()))
+        .unwrap_or_else(|| "none".into());
+    format!("resource={:?} client={client}", resource.id())
+}
+
+fn surface_label(surface: &WlSurface) -> String {
+    resource_label(surface)
+}
 
 // Keyboard RMLVO keymap specifier
 #[allow(clippy::upper_case_acronyms)]
@@ -202,6 +214,14 @@ impl WLCSeatState {
     fn pointer_focus(&mut self, surface: Option<&WlSurface>, x: f64, y: f64) {
         let serial = new_serial();
 
+        if debug_input_enabled() {
+            let target =
+                surface.map(surface_label).unwrap_or_else(|| "none".into());
+            println!(
+                "WLC input wl_pointer focus-request serial={serial:?} target={target} x={x:.2} y={y:.2}"
+            );
+        }
+
         // Unfocus any pointers currently focused on the wrong surface
         self.for_all_pointers(|pointer, data| {
             let focus = match &data.focus {
@@ -213,6 +233,13 @@ impl WLCSeatState {
                 None => true,
             };
             if unfocus {
+                if debug_input_enabled() {
+                    println!(
+                        "WLC input wl_pointer leave pointer={} focus={} serial={serial:?}",
+                        resource_label(pointer),
+                        surface_label(focus)
+                    );
+                }
                 pointer.leave(serial, focus);
                 self.pointer_frame(pointer);
                 data.focus = None;
@@ -230,15 +257,36 @@ impl WLCSeatState {
         self.for_all_pointers(|pointer, data| {
             // Already correct focus
             if self.pointer_focus_eq(data, surface) {
+                if debug_input_enabled() {
+                    println!(
+                        "WLC input wl_pointer enter-skip already-focused pointer={} target={}",
+                        resource_label(pointer),
+                        surface_label(surface)
+                    );
+                }
                 return;
             }
             assert_eq!(data.focus, None);
 
             // Client does not own surface
             if surface.client() != pointer.client() {
+                if debug_input_enabled() {
+                    println!(
+                        "WLC input wl_pointer enter-skip client-mismatch pointer={} target={}",
+                        resource_label(pointer),
+                        surface_label(surface)
+                    );
+                }
                 return;
             }
 
+            if debug_input_enabled() {
+                println!(
+                    "WLC input wl_pointer enter pointer={} target={} serial={serial:?} x={x:.2} y={y:.2}",
+                    resource_label(pointer),
+                    surface_label(surface)
+                );
+            }
             pointer.enter(serial, surface, x, y);
             self.pointer_frame(pointer);
             data.focus = Some(surface.clone());
@@ -271,6 +319,12 @@ impl WLCSeatState {
         self.for_all_pointers(|pointer, data| {
             // Pointer does not hold focus
             if data.focus.is_none() {
+                if debug_input_enabled() {
+                    println!(
+                        "WLC input wl_pointer motion-skip no-focus pointer={} x={x:.2} y={y:.2}",
+                        resource_label(pointer)
+                    );
+                }
                 return;
             }
             // Pointer location did not change
@@ -278,6 +332,17 @@ impl WLCSeatState {
                 return;
             }
 
+            if debug_input_enabled() {
+                let focus = data
+                    .focus
+                    .as_ref()
+                    .map(surface_label)
+                    .unwrap_or_else(|| "none".into());
+                println!(
+                    "WLC input wl_pointer motion pointer={} focus={focus} time={time} x={x:.2} y={y:.2}",
+                    resource_label(pointer)
+                );
+            }
             pointer.motion(time, x, y);
             self.pointer_frame(pointer);
             data.last_motion = Some(pos);
@@ -286,9 +351,26 @@ impl WLCSeatState {
 
     // Emit relative movement on the surface with active pointer focus
     pub fn pointer_relative_motion(&self, dx: f64, dy: f64) {
-        self.for_all_pointers(|_pointer, data| {
+        self.for_all_pointers(|pointer, data| {
             if data.focus.is_none() {
+                if debug_input_enabled() {
+                    println!(
+                        "WLC input wl_pointer relative-skip no-focus pointer={} dx={dx:.2} dy={dy:.2}",
+                        resource_label(pointer)
+                    );
+                }
                 return;
+            }
+            if debug_input_enabled() {
+                let focus = data
+                    .focus
+                    .as_ref()
+                    .map(surface_label)
+                    .unwrap_or_else(|| "none".into());
+                println!(
+                    "WLC input wl_pointer relative pointer={} focus={focus} dx={dx:.2} dy={dy:.2}",
+                    resource_label(pointer)
+                );
             }
             for relative_pointer in &data.relative_pointers {
                 let time = (get_time() as u64) * 1000; // ms to µs
@@ -308,9 +390,26 @@ impl WLCSeatState {
         let serial = new_serial();
         self.for_all_pointers(|pointer, data| {
             if data.focus.is_none() {
+                if debug_input_enabled() {
+                    println!(
+                        "WLC input wl_pointer button-skip no-focus pointer={} button={button} state={state:?} serial={serial:?}",
+                        resource_label(pointer)
+                    );
+                }
                 return;
             }
 
+            if debug_input_enabled() {
+                let focus = data
+                    .focus
+                    .as_ref()
+                    .map(surface_label)
+                    .unwrap_or_else(|| "none".into());
+                println!(
+                    "WLC input wl_pointer button pointer={} focus={focus} button={button} state={state:?} serial={serial:?}",
+                    resource_label(pointer)
+                );
+            }
             pointer.button(serial, get_time(), button, state);
             self.pointer_frame(pointer);
         });
@@ -320,8 +419,24 @@ impl WLCSeatState {
     pub fn pointer_axis(&self, axis: Axis, value: f64) {
         self.for_all_pointers(|pointer, data| {
             if data.focus.is_some() {
+                if debug_input_enabled() {
+                    let focus = data
+                        .focus
+                        .as_ref()
+                        .map(surface_label)
+                        .unwrap_or_else(|| "none".into());
+                    println!(
+                        "WLC input wl_pointer axis pointer={} focus={focus} axis={axis:?} value={value:.2}",
+                        resource_label(pointer)
+                    );
+                }
                 pointer.axis(get_time(), axis, value);
                 self.pointer_frame(pointer);
+            } else if debug_input_enabled() {
+                println!(
+                    "WLC input wl_pointer axis-skip no-focus pointer={} axis={axis:?} value={value:.2}",
+                    resource_label(pointer)
+                );
             }
         });
     }
@@ -472,12 +587,25 @@ impl WLCSeatState {
     }
 
     pub fn pointer_unlock(&self) {
-        self.for_all_pointers(|_pointer, data| {
+        self.for_all_pointers(|pointer, data| {
             if let Some(lock) = &mut data.lock {
+                if debug_input_enabled() {
+                    println!(
+                        "WLC input constraint unlock pointer={} surface={} active={}",
+                        resource_label(pointer),
+                        surface_label(&lock.surface),
+                        lock.active
+                    );
+                }
                 if lock.active {
                     lock.locked_pointer.unlocked();
                 }
                 lock.active = false;
+            } else if debug_input_enabled() {
+                println!(
+                    "WLC input constraint unlock pointer={} no-lock",
+                    resource_label(pointer)
+                );
             }
         });
     }
@@ -489,11 +617,26 @@ impl WLCSeatState {
                 if let Some(lock) = &mut data.lock {
                     if lock.surface == *surface {
                         if !lock.active {
+                            if debug_input_enabled() {
+                                println!(
+                                    "WLC input constraint lock-activate pointer={} surface={}",
+                                    resource_label(pointer),
+                                    surface_label(surface)
+                                );
+                            }
                             lock.locked_pointer.locked();
                             lock.active = true;
                         }
                         locked = true;
                     } else if lock.active {
+                        if debug_input_enabled() {
+                            println!(
+                                "WLC input constraint lock-deactivate pointer={} old_surface={} new_surface={}",
+                                resource_label(pointer),
+                                surface_label(&lock.surface),
+                                surface_label(surface)
+                            );
+                        }
                         lock.locked_pointer.unlocked();
                         lock.active = false;
                     }
@@ -503,6 +646,12 @@ impl WLCSeatState {
             if locked {
                 return true;
             }
+        }
+        if debug_input_enabled() {
+            println!(
+                "WLC input constraint lock-request no-matching-lock surface={}",
+                surface_label(surface)
+            );
         }
         false
     }
@@ -631,6 +780,12 @@ impl Dispatch<WlSeat, ()> for WLCState {
                 let pointer: WlPointer =
                     data_init.init(id, pointer_data.clone());
 
+                if debug_input_enabled() {
+                    println!(
+                        "WLC input wl_pointer created pointer={}",
+                        resource_label(&pointer)
+                    );
+                }
                 state.seat.pointers.push(pointer);
             }
             wl_seat::Request::GetKeyboard { id } => {
@@ -706,6 +861,12 @@ impl Dispatch<WlPointer, WLCPointer> for WLCState {
         pointer_resource: &WlPointer,
         _data: &WLCPointer,
     ) {
+        if debug_input_enabled() {
+            println!(
+                "WLC input wl_pointer destroyed pointer={}",
+                resource_label(pointer_resource)
+            );
+        }
         state.seat.pointers.retain(|p| p != pointer_resource);
     }
 }
@@ -764,6 +925,12 @@ impl Dispatch<ZwpRelativePointerManagerV1, ()> for WLCState {
             zwp_rpm::Request::GetRelativePointer { id, pointer } => {
                 let relative_pointer = data_init.init(id, ());
 
+                if debug_input_enabled() {
+                    println!(
+                        "WLC input relative-pointer created pointer={}",
+                        resource_label(&pointer)
+                    );
+                }
                 with_pointer_data(&pointer, |data| {
                     data.relative_pointers.push(relative_pointer);
                 });
@@ -858,6 +1025,13 @@ impl Dispatch<ZwpPointerConstraintsV1, ()> for WLCState {
                 pointer,
                 ..
             } => {
+                if debug_input_enabled() {
+                    println!(
+                        "WLC input constraint lock-create pointer={} surface={}",
+                        resource_label(&pointer),
+                        surface_label(&surface)
+                    );
+                }
                 if has_existing_constraint(state, &pointer, &surface) {
                     resource.post_error(
                         zwp_constraints::Error::AlreadyConstrained,
@@ -882,6 +1056,13 @@ impl Dispatch<ZwpPointerConstraintsV1, ()> for WLCState {
                 pointer,
                 ..
             } => {
+                if debug_input_enabled() {
+                    println!(
+                        "WLC input constraint confine-create pointer={} surface={}",
+                        resource_label(&pointer),
+                        surface_label(&surface)
+                    );
+                }
                 if has_existing_constraint(state, &pointer, &surface) {
                     resource.post_error(
                         zwp_constraints::Error::AlreadyConstrained,
@@ -926,6 +1107,16 @@ impl Dispatch<ZwpLockedPointerV1, WlPointer> for WLCState {
         pointer: &WlPointer,
     ) {
         with_pointer_data(pointer, |data| {
+            if debug_input_enabled()
+                && let Some(lock) = &data.lock
+            {
+                println!(
+                    "WLC input constraint lock-destroy pointer={} surface={} active={}",
+                    resource_label(pointer),
+                    surface_label(&lock.surface),
+                    lock.active
+                );
+            }
             data.lock = None;
         });
     }
@@ -955,6 +1146,15 @@ impl Dispatch<ZwpConfinedPointerV1, WlPointer> for WLCState {
         pointer: &WlPointer,
     ) {
         with_pointer_data(pointer, |data| {
+            if debug_input_enabled()
+                && let Some(surface) = &data.confined
+            {
+                println!(
+                    "WLC input constraint confine-destroy pointer={} surface={}",
+                    resource_label(pointer),
+                    surface_label(surface)
+                );
+            }
             data.confined = None;
         });
     }

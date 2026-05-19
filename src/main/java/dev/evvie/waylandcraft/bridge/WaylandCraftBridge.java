@@ -95,6 +95,7 @@ public class WaylandCraftBridge {
 		}
 
 		long handle = init(GLFW.Functions.GetProcAddress, eglDisplay);
+		setNativeDebugInput(WaylandCraft.DEBUG_WINDOWS);
 		return new WaylandCraftBridge(handle);
 	}
 
@@ -119,6 +120,8 @@ public class WaylandCraftBridge {
 		WLCX11Window window = new WLCX11Window(handle);
 
 		long surfaceHandle = x11WindowSurface(this.instance, handle);
+		window.x11WindowID = x11WindowID(handle);
+		window.x11MappedWindowID = x11WindowMappedID(handle);
 		if(surfaceHandle != 0) {
 			WLCSurface surface = getOrCreateSurface(surfaceHandle);
 			window.surface = surface;
@@ -127,7 +130,8 @@ public class WaylandCraftBridge {
 
 		x11Windows.add(window);
 		toplevels.add(window);
-		WaylandCraft.LOGGER.info("WLC X11 window created handle={} surface={}", handle, surfaceHandle);
+		WaylandCraft.LOGGER.info("WLC X11 window created handle={} xid=0x{} mappedXid=0x{} surface={}",
+				handle, Long.toHexString(window.x11WindowID), Long.toHexString(window.x11MappedWindowID), surfaceHandle);
 		return window;
 	}
 
@@ -383,6 +387,20 @@ public class WaylandCraftBridge {
 			updateGeometry(window);
 			window.title = x11WindowTitle(window.getHandle());
 			window.appID = x11WindowAppID(window.getHandle());
+			long x11WindowID = x11WindowID(window.getHandle());
+			long x11MappedWindowID = x11WindowMappedID(window.getHandle());
+			if(window.x11WindowID != x11WindowID || window.x11MappedWindowID != x11MappedWindowID) {
+				WaylandCraft.LOGGER.info("WLC X11 ids changed handle={} oldXid=0x{} newXid=0x{} oldMappedXid=0x{} newMappedXid=0x{} title={} appID={}",
+						handle,
+						Long.toHexString(window.x11WindowID),
+						Long.toHexString(x11WindowID),
+						Long.toHexString(window.x11MappedWindowID),
+						Long.toHexString(x11MappedWindowID),
+						window.title,
+						window.appID);
+				window.x11WindowID = x11WindowID;
+				window.x11MappedWindowID = x11MappedWindowID;
+			}
 
 			if(ArrayUtils.contains(minimizeRequests, handle)) window.requests.minimize = true;
 			window.fullscreen = ArrayUtils.contains(fullscreened, handle);
@@ -835,6 +853,7 @@ public class WaylandCraftBridge {
 	public static record ResizeRequest(int serial, int edges) {}
 
 	private static native long init(long glfwGetProcAddress, long eglDisplay);
+	private static native void setNativeDebugInput(boolean enabled);
 	private static native void update(long instance);
 	private static native String socket(long instance);
 	private static native void sendFrame(long handle);
@@ -850,6 +869,8 @@ public class WaylandCraftBridge {
 	private static native long x11WindowSurface(long instance, long handle);
 	private static native String x11WindowTitle(long handle);
 	private static native String x11WindowAppID(long handle);
+	private static native long x11WindowID(long handle);
+	private static native long x11WindowMappedID(long handle);
 	private static native int[] x11WindowGeometry(long handle);
 	private static native void x11WindowResize(long handle, int width, int height);
 	private static native void x11WindowMaximize(long instance, long handle);

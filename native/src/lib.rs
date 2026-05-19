@@ -3,6 +3,7 @@ use crate::ddm::WLCDataState;
 use crate::egl::EGLHelper;
 use crate::output::WLCOutput;
 use crate::seat::WLCSeatState;
+use crate::x11_probe::X11InputProbe;
 use crate::xdg_spec::XDGSpecHelper;
 use smithay::{
     backend::{allocator::dmabuf::Dmabuf, drm::DrmNode},
@@ -21,7 +22,7 @@ use smithay::{
         },
         wayland_protocols::xdg::shell::server::xdg_toplevel::ResizeEdge,
         wayland_server::{
-            self, Display, DisplayHandle,
+            self, Display, DisplayHandle, Resource,
             backend::{ClientData, ClientId, DisconnectReason},
             protocol::{
                 wl_buffer::WlBuffer, wl_output::WlOutput, wl_seat::WlSeat,
@@ -60,6 +61,7 @@ use smithay::{
 use std::ffi::OsString;
 use std::process::Stdio;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 mod bridge;
@@ -70,7 +72,10 @@ mod process;
 mod seat;
 mod svg;
 mod utils;
+mod x11_probe;
 mod xdg_spec;
+
+static DEBUG_INPUT_OVERRIDE: AtomicBool = AtomicBool::new(false);
 
 fn debug_x11_enabled() -> bool {
     std::env::var("WAYLANDCRAFT_DEBUG_X11")
@@ -80,6 +85,27 @@ fn debug_x11_enabled() -> bool {
                 || value.eq_ignore_ascii_case("yes")
         })
         .unwrap_or(false)
+}
+
+pub(crate) fn debug_input_enabled() -> bool {
+    if DEBUG_INPUT_OVERRIDE.load(Ordering::Relaxed) {
+        return true;
+    }
+    std::env::var("WAYLANDCRAFT_DEBUG_INPUT")
+        .or_else(|_| std::env::var("WAYLANDCRAFT_DEBUG_WINDOWS"))
+        .map(|value| {
+            value == "1"
+                || value.eq_ignore_ascii_case("true")
+                || value.eq_ignore_ascii_case("yes")
+        })
+        .unwrap_or(false)
+}
+
+pub(crate) fn set_debug_input_enabled(enabled: bool) {
+    DEBUG_INPUT_OVERRIDE.store(enabled, Ordering::Relaxed);
+    if enabled {
+        println!("WLC input native debug enabled by Java bridge");
+    }
 }
 
 pub(crate) struct WaylandCraft<'a> {
@@ -111,6 +137,7 @@ pub struct WLCState {
     pub xwm: Option<X11Wm>,
     pub xdisplay: Option<u32>,
     pub x11_windows: Vec<Box<X11Surface>>,
+    pub(crate) x11_input_probe: Option<X11InputProbe>,
 }
 
 #[derive(Default)]
@@ -176,6 +203,7 @@ impl WLCState {
             xwm: None,
             xdisplay: None,
             x11_windows: vec![],
+            x11_input_probe: None,
         }
     }
 
@@ -197,14 +225,19 @@ impl WLCState {
         }
 
         if !self.x11_windows.iter().any(|w| **w == window) {
+            let label = self.describe_x11_window(&window);
             if debug_x11_enabled() {
-                eprintln!(
-                    "WLC X11 track window title={:?} class={:?} geometry={:?} type={:?}",
-                    window.title(),
-                    window.class(),
-                    window.geometry(),
-                    window.window_type()
-                );
+                eprintln!("WLC X11 track {label}");
+            }
+            if debug_input_enabled() {
+                println!("WLC input X11 track {label}");
+                if let Some(probe) = &self.x11_input_probe {
+                    probe.watch_window(
+                        window.window_id(),
+                        window.mapped_window_id(),
+                        label,
+                    );
+                }
             }
             self.x11_windows.push(Box::new(window));
         }
@@ -214,14 +247,48 @@ impl WLCState {
         if debug_x11_enabled()
             && self.x11_windows.iter().any(|w| **w == *window)
         {
-            eprintln!(
-                "WLC X11 untrack window title={:?} class={:?} geometry={:?}",
-                window.title(),
-                window.class(),
-                window.geometry()
-            );
+            eprintln!("WLC X11 untrack {}", self.describe_x11_window(window));
         }
         self.x11_windows.retain(|w| **w != *window);
+    }
+
+    pub(crate) fn describe_x11_window(&self, window: &X11Surface) -> String {
+        let surface = window
+            .wl_surface()
+            .as_ref()
+            .map(|surface| format!("{:?}", surface.id()))
+            .unwrap_or_else(|| "none".into());
+        format!(
+            "handle={:p} xid=0x{:x} mapped_xid={} title={:?} class={:?} geometry={:?} type={:?} fullscreen={} mapped={} wl_surface={}",
+            window,
+            window.window_id(),
+            window
+                .mapped_window_id()
+                .map(|id| format!("0x{id:x}"))
+                .unwrap_or_else(|| "none".into()),
+            window.title(),
+            window.class(),
+            window.geometry(),
+            window.window_type(),
+            window.is_fullscreen(),
+            window.is_mapped(),
+            surface,
+        )
+    }
+
+    pub(crate) fn describe_x11_surface_owner(
+        &self,
+        surface: &WlSurface,
+    ) -> Option<String> {
+        self.x11_windows
+            .iter()
+            .find(|window| {
+                window
+                    .wl_surface()
+                    .as_ref()
+                    .is_some_and(|candidate| candidate == surface)
+            })
+            .map(|window| self.describe_x11_window(window))
     }
 
     fn output_x11_geometry(&self) -> Rectangle<i32, Logical> {
@@ -297,6 +364,10 @@ impl WLCState {
                     };
                     data.xwm = Some(wm);
                     data.xdisplay = Some(display_number);
+                    if debug_input_enabled() {
+                        data.x11_input_probe =
+                            Some(X11InputProbe::start(display_number));
+                    }
                 }
                 XWaylandEvent::Error => {
                     eprintln!("Xwayland crashed on startup");
