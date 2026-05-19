@@ -108,6 +108,21 @@ pub(crate) fn set_debug_input_enabled(enabled: bool) {
     }
 }
 
+pub(crate) fn log_native_stderr(message: &str) {
+    unsafe {
+        let _ = libc::write(
+            libc::STDERR_FILENO,
+            message.as_ptr().cast::<libc::c_void>(),
+            message.len(),
+        );
+        let _ = libc::write(
+            libc::STDERR_FILENO,
+            b"\n".as_ptr().cast::<libc::c_void>(),
+            1,
+        );
+    }
+}
+
 pub(crate) struct WaylandCraft<'a> {
     pub state: WLCState,
     pub event_loop: EventLoop<'a, WLCState>,
@@ -817,8 +832,16 @@ impl<'a> WaylandCraft<'a> {
     pub fn update(&mut self) {
         let state = &mut self.state;
         let event_loop = &mut self.event_loop;
-        event_loop.dispatch(Some(Duration::ZERO), state).unwrap();
-        state.display_handle.flush_clients().unwrap();
+        if let Err(err) = event_loop.dispatch(Some(Duration::ZERO), state) {
+            log_native_stderr(&format!(
+                "WLC native update dispatch failed: {err}"
+            ));
+        }
+        if let Err(err) = state.display_handle.flush_clients() {
+            log_native_stderr(&format!(
+                "WLC native update flush_clients failed: {err}"
+            ));
+        }
     }
 }
 

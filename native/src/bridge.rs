@@ -5,8 +5,8 @@ use crate::svg::render_svg;
 use crate::utils::get_time;
 use crate::xdg_spec::RawDesktopEntry;
 use crate::{
-    WLCState, WaylandCraft, debug_input_enabled, set_debug_input_enabled,
-    wlc_init,
+    WLCState, WaylandCraft, debug_input_enabled, log_native_stderr,
+    set_debug_input_enabled, wlc_init,
 };
 use jni::{
     JNIEnv,
@@ -50,6 +50,7 @@ use smithay::{
     xwayland::X11Surface,
 };
 use std::ops::DerefMut;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 
 #[allow(clippy::vec_box)]
@@ -120,8 +121,19 @@ pub extern "system" fn update<'l>(
     _class: JClass<'l>,
     ptr: jlong,
 ) {
-    let instance = jptr_to_instance(ptr);
-    instance.update();
+    if let Err(payload) = catch_unwind(AssertUnwindSafe(|| {
+        let instance = jptr_to_instance(ptr);
+        instance.update();
+    })) {
+        let message = payload
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+            .unwrap_or("non-string panic payload");
+        log_native_stderr(&format!(
+            "WLC native update panic caught at JNI boundary: {message}"
+        ));
+    }
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
