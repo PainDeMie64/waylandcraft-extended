@@ -2,6 +2,7 @@ package dev.evvie.waylandcraft.bridge;
 
 public class WLCX11Window extends WLCToplevel {
 
+	public SurfaceGeometry nativeGeometry = null;
 	protected long debugSurfaceHandle = Long.MIN_VALUE;
 	protected int debugNativeX = Integer.MIN_VALUE;
 	protected int debugNativeY = Integer.MIN_VALUE;

@@ -8,7 +8,9 @@ import com.mojang.blaze3d.vertex.PoseStack;
 
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow;
 import dev.evvie.waylandcraft.bridge.WLCSurface;
+import dev.evvie.waylandcraft.bridge.WLCX11Window;
 import dev.evvie.waylandcraft.render.RenderUtils;
+import dev.evvie.waylandcraft.render.RenderUtils.FitRect;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Camera;
 import net.minecraft.world.entity.Entity;
@@ -31,6 +33,14 @@ public class WindowDisplay {
 	
 	private int width;
 	private int height;
+	private int debugFramebufferWidth = Integer.MIN_VALUE;
+	private int debugFramebufferHeight = Integer.MIN_VALUE;
+	private double debugDrawX = Double.NaN;
+	private double debugDrawY = Double.NaN;
+	private double debugDrawWidth = Double.NaN;
+	private double debugDrawHeight = Double.NaN;
+	private double debugDrawScale = Double.NaN;
+	private long debugLastPointerLogNanos = 0L;
 	
 	public WindowDisplay(WLCAbstractWindow window) {
 		this.window = window;
@@ -91,10 +101,9 @@ public class WindowDisplay {
 		if(window.framebuffer == null) return;
 		updateGeometry();
 		
-		int xoff = window.framebuffer.getXOff();
-		int yoff = window.framebuffer.getYOff();
-		int bufWidth = window.framebuffer.getWidth();
-		int bufHeight = window.framebuffer.getHeight();
+		FitRect fit = presentationFit();
+		if(fit.scale() <= 0.0) return;
+		logRenderFitIfChanged(fit);
 
 		Vec3 localX = localX();
 		Vec3 localY = localY();
@@ -102,18 +111,36 @@ public class WindowDisplay {
 		Vec3 cameraPos = ctx.levelState().cameraRenderState.pos;
 		Vec3 originRel = origin().subtract(cameraPos);
 
-		Vec3 bufOffset = localX.scale(-xoff).add(localY.scale(-yoff));
-
-		Vec3 tl = bufOffset;
-		Vec3 bl = bufOffset.add(localY.scale(bufHeight));
-		Vec3 br = bl.add(localX.scale(bufWidth));
-		Vec3 tr = tl.add(localX.scale(bufWidth));
+		Vec3 tl = localX.scale(fit.x()).add(localY.scale(fit.y()));
+		Vec3 bl = localX.scale(fit.x()).add(localY.scale(fit.bottom()));
+		Vec3 br = localX.scale(fit.right()).add(localY.scale(fit.bottom()));
+		Vec3 tr = localX.scale(fit.right()).add(localY.scale(fit.y()));
 		
 		PoseStack poseStack = ctx.poseStack();
 		poseStack.pushPose();
 		poseStack.translate(originRel.x, originRel.y, originRel.z);
 		RenderUtils.renderFramebuffer(window.framebuffer, poseStack, ctx.submitNodeCollector(), true, tl, bl, br, tr);
 		poseStack.popPose();
+	}
+
+	private FitRect presentationFit() {
+		if(window.framebuffer == null) {
+			return RenderUtils.aspectFit(width, height, 0, 0, width, height);
+		}
+		return RenderUtils.aspectFit(window.framebuffer, 0, 0, width, height);
+	}
+
+	private @Nullable Vec3 displayLocalToRootLocal(Vec3 displayLocal) {
+		if(window.framebuffer == null) return displayLocal;
+
+		FitRect fit = presentationFit();
+		if(!fit.contains(displayLocal.x, displayLocal.y)) {
+			return null;
+		}
+
+		double rootX = fit.sourceX(displayLocal.x) - window.framebuffer.getXOff();
+		double rootY = fit.sourceY(displayLocal.y) - window.framebuffer.getYOff();
+		return new Vec3(rootX, rootY, displayLocal.z);
 	}
 	
 	/* Transform absolute world coordinates to surface-local pixel coordinates relative to toplevel (0, 0)
@@ -155,13 +182,17 @@ public class WindowDisplay {
 		if(t < 0) return null;
 		
 		Vec3 hitPos = pos.add(dir.scale(t));
-		Vec3 localCoords = worldToLocal(hitPos);
+		Vec3 displayLocalCoords = worldToLocal(hitPos);
+		Vec3 inputLocalCoords = displayLocalToRootLocal(displayLocalCoords);
+		if(inputLocalCoords == null) {
+			return new DisplayHitResult(this, null, hitPos, displayLocalCoords, null, null, t);
+		}
 		
 		WLCSurface hitSurface = null;
 		Vec3 localCoordsRelative = null;
 		
 		for(WLCSurface surface = window.getSurfaceTreeLast(); surface != null; surface = surface.getPrevChild()) {
-			Vec3 rel = localCoords.subtract(surface.xSubpos, surface.ySubpos, 0);
+			Vec3 rel = inputLocalCoords.subtract(surface.xSubpos, surface.ySubpos, 0);
 			
 			int width = surface.width();
 			int height = surface.height();
@@ -181,7 +212,45 @@ public class WindowDisplay {
 		double dist = t;
 		if(p2 > 0) dist *= -1;
 		
-		return new DisplayHitResult(this, hitSurface, hitPos, localCoords, localCoordsRelative, dist);
+		DisplayHitResult result = new DisplayHitResult(this, hitSurface, hitPos, displayLocalCoords, inputLocalCoords, localCoordsRelative, dist);
+		logPointerMapping(result);
+		return result;
+	}
+
+	private void logRenderFitIfChanged(FitRect fit) {
+		if(!WaylandCraft.DEBUG_WINDOWS || window.framebuffer == null) return;
+
+		int framebufferWidth = window.framebuffer.getWidth();
+		int framebufferHeight = window.framebuffer.getHeight();
+		if(debugFramebufferWidth == framebufferWidth && debugFramebufferHeight == framebufferHeight && Double.compare(debugDrawX, fit.x()) == 0 && Double.compare(debugDrawY, fit.y()) == 0 && Double.compare(debugDrawWidth, fit.width()) == 0 && Double.compare(debugDrawHeight, fit.height()) == 0 && Double.compare(debugDrawScale, fit.scale()) == 0) {
+			return;
+		}
+
+		debugFramebufferWidth = framebufferWidth;
+		debugFramebufferHeight = framebufferHeight;
+		debugDrawX = fit.x();
+		debugDrawY = fit.y();
+		debugDrawWidth = fit.width();
+		debugDrawHeight = fit.height();
+		debugDrawScale = fit.scale();
+
+		if(window instanceof WLCX11Window x11 && x11.nativeGeometry != null) {
+			WaylandCraft.LOGGER.info("WLC world render fit window={} title={} appID={} source={}x{} framebuffer={}x{} x11={}x{}+{}+{} display={}x{} draw={}x{}+{}+{} scale={}", window.getHandle(), x11.title, x11.appID, fit.sourceWidth(), fit.sourceHeight(), framebufferWidth, framebufferHeight, x11.nativeGeometry.width(), x11.nativeGeometry.height(), x11.nativeGeometry.x(), x11.nativeGeometry.y(), width, height, fit.width(), fit.height(), fit.x(), fit.y(), fit.scale());
+		}
+		else {
+			WaylandCraft.LOGGER.info("WLC world render fit window={} source={}x{} framebuffer={}x{} geometry={}x{} display={}x{} draw={}x{}+{}+{} scale={}", window.getHandle(), fit.sourceWidth(), fit.sourceHeight(), framebufferWidth, framebufferHeight, window.geometry.width(), window.geometry.height(), width, height, fit.width(), fit.height(), fit.x(), fit.y(), fit.scale());
+		}
+	}
+
+	private void logPointerMapping(DisplayHitResult result) {
+		if(!WaylandCraft.DEBUG_WINDOWS || result.surface == null || result.inputLocalOrigin == null || result.surfaceLocalRelative == null) return;
+
+		long now = System.nanoTime();
+		if(now - debugLastPointerLogNanos < 250_000_000L) return;
+		debugLastPointerLogNanos = now;
+
+		FitRect fit = presentationFit();
+		WaylandCraft.LOGGER.info("WLC world pointer window={} display={}x{} inputRoot={}x{} surface={} rel={}x{} draw={}x{}+{}+{} scale={}", window.getHandle(), result.surfaceLocalOrigin.x, result.surfaceLocalOrigin.y, result.inputLocalOrigin.x, result.inputLocalOrigin.y, result.surface.getDebugHandle(), result.surfaceLocalRelative.x, result.surfaceLocalRelative.y, fit.width(), fit.height(), fit.x(), fit.y(), fit.scale());
 	}
 	
 	public void anchorToPosView(Vec3 pos, Vec3 look, Vec3 up) {
@@ -210,6 +279,9 @@ public class WindowDisplay {
 		
 		// Surface-local coordinates relative to WindowDisplay origin
 		public final Vec3 surfaceLocalOrigin;
+
+		// Root surface coordinates after inverse presentation scaling.
+		public final @Nullable Vec3 inputLocalOrigin;
 		
 		// Surface-local coordinates relative to hit surface. Always guaranteed to not be null, if `surface` is non-null.
 		public final @Nullable Vec3 surfaceLocalRelative;
@@ -217,11 +289,12 @@ public class WindowDisplay {
 		// Calculated distance
 		public final double dist;
 		
-		public DisplayHitResult(WindowDisplay target, WLCSurface surface, Vec3 position, Vec3 surfaceLocalOrigin, Vec3 surfaceLocalRelative, double dist) {
+		public DisplayHitResult(WindowDisplay target, WLCSurface surface, Vec3 position, Vec3 surfaceLocalOrigin, Vec3 inputLocalOrigin, Vec3 surfaceLocalRelative, double dist) {
 			this.target = target;
 			this.surface = surface;
 			this.position = position;
 			this.surfaceLocalOrigin = surfaceLocalOrigin;
+			this.inputLocalOrigin = inputLocalOrigin;
 			this.surfaceLocalRelative = surfaceLocalRelative;
 			this.dist = dist;
 		}
@@ -232,7 +305,7 @@ public class WindowDisplay {
 		
 		@Override
 		public String toString() {
-			return "{target=" + target + ", surface=" + surface + ", position=" + position + ", local=" + surfaceLocalOrigin + ", relative=" + surfaceLocalRelative + ", dist=" + dist + "}";
+			return "{target=" + target + ", surface=" + surface + ", position=" + position + ", local=" + surfaceLocalOrigin + ", inputLocal=" + inputLocalOrigin + ", relative=" + surfaceLocalRelative + ", dist=" + dist + "}";
 		}
 		
 	}

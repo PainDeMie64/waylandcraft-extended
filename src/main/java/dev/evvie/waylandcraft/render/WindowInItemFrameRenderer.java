@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 
 import dev.evvie.waylandcraft.bridge.WLCToplevel;
+import dev.evvie.waylandcraft.render.RenderUtils.FitRect;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.world.phys.Vec3;
 
@@ -31,18 +32,12 @@ public class WindowInItemFrameRenderer {
 		float scale = 1.0f / resolution;
 		poseStack.scale(scale, scale, 1.0f);
 		
-		int x = -toplevel.framebuffer.getXOff() - toplevel.geometry.x();
-		int y = -toplevel.framebuffer.getYOff() - toplevel.geometry.y();
-		int w = toplevel.framebuffer.getWidth();
-		int h = toplevel.framebuffer.getHeight();
+		FitRect fit = RenderUtils.aspectFit(toplevel.framebuffer, resolution / 2.0 - width / 2.0, resolution / 2.0 - height / 2.0, width, height);
 		
-		x += resolution / 2 - width / 2;
-		y += resolution / 2 - height / 2;
-		
-		Vec3 tl = new Vec3(x, y, 0);
-		Vec3 bl = new Vec3(x, y + h, 0);
-		Vec3 br = new Vec3(x + w, y + h, 0);
-		Vec3 tr = new Vec3(x + w, y, 0);
+		Vec3 tl = new Vec3(fit.x(), fit.y(), 0);
+		Vec3 bl = new Vec3(fit.x(), fit.bottom(), 0);
+		Vec3 br = new Vec3(fit.right(), fit.bottom(), 0);
+		Vec3 tr = new Vec3(fit.right(), fit.y(), 0);
 		
 		RenderUtils.renderFramebuffer(toplevel.framebuffer, poseStack, collector, true, tl, bl, br, tr);
 		

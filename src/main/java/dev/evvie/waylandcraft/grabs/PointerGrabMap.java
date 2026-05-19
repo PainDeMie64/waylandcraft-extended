@@ -83,9 +83,9 @@ public class PointerGrabMap {
 		if(implicitGrabs == null) return;
 		
 		DisplayHitResult hitResult = implicitGrabs.window.intersect(pos, view);
-		if(hitResult == null) return;
+		if(hitResult == null || hitResult.inputLocalOrigin == null) return;
 		
-		Vec3 relativeCoords = hitResult.surfaceLocalOrigin.subtract(implicitGrabs.surface.xSubpos, implicitGrabs.surface.ySubpos, 0);
+		Vec3 relativeCoords = hitResult.inputLocalOrigin.subtract(implicitGrabs.surface.xSubpos, implicitGrabs.surface.ySubpos, 0);
 		wlc.bridge.sendMotion(relativeCoords.x, relativeCoords.y);
 	}
 	

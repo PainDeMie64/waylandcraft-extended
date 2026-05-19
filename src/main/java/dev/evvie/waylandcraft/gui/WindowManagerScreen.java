@@ -15,15 +15,18 @@ import dev.evvie.waylandcraft.bridge.WLCAbstractWindow;
 import dev.evvie.waylandcraft.bridge.WLCPopup;
 import dev.evvie.waylandcraft.bridge.WLCSurface;
 import dev.evvie.waylandcraft.bridge.WLCToplevel;
+import dev.evvie.waylandcraft.bridge.WLCX11Window;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.Size;
 import dev.evvie.waylandcraft.desktop.DesktopEntry;
 import dev.evvie.waylandcraft.grabs.WindowGrab;
 import dev.evvie.waylandcraft.mixin.IMouseHandlerMixin;
 import dev.evvie.waylandcraft.render.RenderUtils;
+import dev.evvie.waylandcraft.render.RenderUtils.FitRect;
 import dev.evvie.waylandcraft.render.WindowFramebuffer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.SpriteIconButton;
@@ -63,6 +66,9 @@ public class WindowManagerScreen extends Screen {
 	
 	private WLCToplevel focused = null;
 	private WLCToplevel lastFocused = null;
+	private int debugOutputBoundsWidth = -1;
+	private int debugOutputBoundsHeight = -1;
+	private long debugLastPointerLogNanos = 0L;
 	
 	// All window elements currently displayed, sorted by depth from bottom-most (root) to top-most (last leaf)
 	public ArrayList<WindowElement> windows = new ArrayList<WindowElement>();
@@ -225,7 +231,14 @@ public class WindowManagerScreen extends Screen {
 		context.outline(leftMargin - 1, topMargin - 1, areaWidth + 2, areaHeight + 2, Color.white.getRGB());
 		
 		guiScale = (int) Minecraft.getInstance().getWindow().getGuiScale();
-		wlc.bridge.setOutputBounds(areaWidth * guiScale, areaHeight * guiScale);
+		int outputBoundsWidth = areaWidth * guiScale;
+		int outputBoundsHeight = areaHeight * guiScale;
+		wlc.bridge.setOutputBounds(outputBoundsWidth, outputBoundsHeight);
+		if(WaylandCraft.DEBUG_WINDOWS && (debugOutputBoundsWidth != outputBoundsWidth || debugOutputBoundsHeight != outputBoundsHeight)) {
+			WaylandCraft.LOGGER.info("WLC wm output bounds {}x{} gui={} area={}x{}+{}+{}", outputBoundsWidth, outputBoundsHeight, guiScale, areaWidth, areaHeight, leftMargin, topMargin);
+			debugOutputBoundsWidth = outputBoundsWidth;
+			debugOutputBoundsHeight = outputBoundsHeight;
+		}
 		
 		WLCToplevel[] toplevels = wlc.bridge.getMappedToplevels();
 		selector.setEntries(toplevels);
@@ -277,16 +290,17 @@ public class WindowManagerScreen extends Screen {
 				WindowFramebuffer buf = element.window.framebuffer;
 				if(buf == null) continue;
 				
-				int x = (int) element.x - buf.getXOff();
-				int y = (int) element.y - buf.getYOff();
-				int w = buf.getWidth();
-				int h = buf.getHeight();
-				
-				RenderUtils.renderFramebuffer2D(context, buf, x, y, w, h);
+				FitRect fit = element.framebufferFit();
+				if(WaylandCraft.DEBUG_WINDOWS) logRenderFit(element, fit);
+				RenderUtils.renderFramebuffer2D(context, buf, fit);
 			}
 		}
 		
 		poseStack.popMatrix();
+
+		if(WaylandCraft.DEBUG_OVERLAY) {
+			renderDebugOverlay(context);
+		}
 		
 		buttons.forEach((b) -> b.setFocused(false));
 		
@@ -308,11 +322,6 @@ public class WindowManagerScreen extends Screen {
 		buttons.forEach((b) -> b.visible = true);
 		selector.visible = true;
 		
-		if(focused != null && focused.fullscreen) {
-			buttons.forEach((b) -> b.visible = false);
-			selector.visible = false;
-		}
-		
 		super.extractRenderState(context, i, j, f);
 	}
 	
@@ -323,9 +332,10 @@ public class WindowManagerScreen extends Screen {
 	private HoveredSurface surfaceUnderPointer(double x, double y) {
 		for(int i = windows.size() - 1; i >= 0; i--) {
 			WindowElement element = windows.get(i);
+			if(element.scale <= 0.0f) continue;
 			
-			float sx = (float) x - element.x;
-			float sy = (float) y - element.y;
+			float sx = element.screenToRootX(x);
+			float sy = element.screenToRootY(y);
 			
 			for(WLCSurface surface = element.window.getSurfaceTreeLast(); surface != null; surface = surface.getPrevChild()) {
 				float rx = sx - surface.xSubpos;
@@ -339,14 +349,15 @@ public class WindowManagerScreen extends Screen {
 				}
 				
 				if(!surface.isAlive()) continue;
-				
+
 				if(wlc.bridge.inputRegionContains(surface, rx, ry)) {
+					logPointerMapping("hover", element, x, y, sx, sy, surface, rx, ry);
 					return new HoveredSurface(surface, rx, ry);
 				}
 			}
-		}
-		
-		return null;
+			}
+
+			return null;
 	}
 	
 	@Override
@@ -401,9 +412,10 @@ public class WindowManagerScreen extends Screen {
 				if(surface == implicitGrab.surface) {
 					// Surface was found in this window elements' surface tree
 					
-					float rx = (float) x - elem.x - surface.xSubpos;
-					float ry = (float) y - elem.y - surface.ySubpos;
+					float rx = elem.screenToRootX(x) - surface.xSubpos;
+					float ry = elem.screenToRootY(y) - surface.ySubpos;
 					
+					logPointerMapping("implicit", elem, x, y, elem.screenToRootX(x), elem.screenToRootY(y), surface, rx, ry);
 					wlc.bridge.sendMotion(rx, ry);
 					break;
 				}
@@ -524,46 +536,103 @@ public class WindowManagerScreen extends Screen {
 	}
 	
 	private void prepareToplevel(WLCToplevel toplevel) {
-		float x;
-		float y;
+		WindowFramebuffer buf = toplevel.framebuffer;
+		double sourceWidth = buf != null ? buf.getWidth() : toplevel.geometry.width();
+		double sourceHeight = buf != null ? buf.getHeight() : toplevel.geometry.height();
+		FitRect fit = toplevelPresentationFit(toplevel, sourceWidth, sourceHeight);
+		float x = (float) (fit.x() + (buf == null ? 0 : buf.getXOff()) * fit.scale());
+		float y = (float) (fit.y() + (buf == null ? 0 : buf.getYOff()) * fit.scale());
 		
-		if(!toplevel.fullscreen) {
-			x = leftMargin * guiScale + Math.max(0, areaWidth * guiScale / 2 - toplevel.geometry.width() / 2);
-			y = topMargin * guiScale + Math.max(0, areaHeight * guiScale / 2 - toplevel.geometry.height() / 2);
-		}
-		else {
-			x = 0;
-			y = 0;
-		}
-		
-		x -= toplevel.geometry.x();
-		y -= toplevel.geometry.y();
-		
-		windows.add(new WindowElement(toplevel, x, y));
+		windows.add(new WindowElement(toplevel, x, y, (float) fit.scale()));
 		
 		WindowTree tree = WindowTree.constructTree(wlc.bridge, toplevel);
-		preparePopupTree(tree, x, y);
+		preparePopupTree(tree, x, y, (float) fit.scale());
+	}
+
+	private FitRect toplevelPresentationFit(WLCToplevel toplevel, double sourceWidth, double sourceHeight) {
+		double contentX = leftMargin * guiScale;
+		double contentY = topMargin * guiScale;
+		double contentWidth = areaWidth * guiScale;
+		double contentHeight = areaHeight * guiScale;
+
+		if(toplevel.fullscreen) {
+			return RenderUtils.aspectFit(sourceWidth, sourceHeight, contentX, contentY, contentWidth, contentHeight);
+		}
+
+		double naturalWidth = Math.max(sourceWidth, toplevel.geometry.width());
+		double naturalHeight = Math.max(sourceHeight, toplevel.geometry.height());
+		double presentationScale = Math.min(1.0, Math.min(contentWidth / Math.max(1.0, naturalWidth), contentHeight / Math.max(1.0, naturalHeight)));
+		double destWidth = naturalWidth * presentationScale;
+		double destHeight = naturalHeight * presentationScale;
+		double destX = contentX + (contentWidth - destWidth) / 2.0;
+		double destY = contentY + (contentHeight - destHeight) / 2.0;
+
+		return RenderUtils.aspectFit(sourceWidth, sourceHeight, destX, destY, destWidth, destHeight);
 	}
 	
-	private void preparePopupTree(WindowTree tree, float x, float y) {
+	private void preparePopupTree(WindowTree tree, float x, float y, float scale) {
 		if(tree.window instanceof WLCPopup) {
 			WLCPopup popup = (WLCPopup) tree.window;
 			
-			x += popup.getParent().geometry.x();
-			y += popup.getParent().geometry.y();
+			x += popup.getParent().geometry.x() * scale;
+			y += popup.getParent().geometry.y() * scale;
 			
-			x += popup.offsetX;
-			y += popup.offsetY;
+			x += popup.offsetX * scale;
+			y += popup.offsetY * scale;
 			
-			x -= popup.geometry.x();
-			y -= popup.geometry.y();
+			x -= popup.geometry.x() * scale;
+			y -= popup.geometry.y() * scale;
 			
-			windows.add(new WindowElement(popup, x, y));
+			windows.add(new WindowElement(popup, x, y, scale));
 		}
 		
 		for(WindowTree child : tree.children) {
-			preparePopupTree(child, x, y);
+			preparePopupTree(child, x, y, scale);
 		}
+	}
+
+	private void renderDebugOverlay(GuiGraphicsExtractor context) {
+		Font font = Minecraft.getInstance().font;
+		for(WindowElement element : windows) {
+			WindowFramebuffer buf = element.window.framebuffer;
+			if(buf == null || !buf.isValid()) continue;
+
+			FitRect fit = element.framebufferFit();
+			int x = (int) Math.round(fit.x() / guiScale);
+			int y = (int) Math.round(fit.y() / guiScale);
+			int w = (int) Math.round(fit.width() / guiScale);
+			int h = (int) Math.round(fit.height() / guiScale);
+			context.outline(x, y, w, h, Color.green.getRGB());
+
+			String label = String.format("src=%dx%d fit=%dx%d scale=%.3f geom=%dx%d", buf.getWidth(), buf.getHeight(), (int) Math.round(fit.width()), (int) Math.round(fit.height()), fit.scale(), element.window.geometry.width(), element.window.geometry.height());
+			if(element.window instanceof WLCX11Window x11 && x11.nativeGeometry != null) {
+				label += String.format(" x11=%dx%d+%d+%d", x11.nativeGeometry.width(), x11.nativeGeometry.height(), x11.nativeGeometry.x(), x11.nativeGeometry.y());
+			}
+			context.text(font, label, x + 2, y + 2, Color.green.getRGB(), true);
+		}
+	}
+
+	private void logRenderFit(WindowElement element, FitRect fit) {
+		WindowFramebuffer buf = element.window.framebuffer;
+		if(buf == null) return;
+
+		if(element.window instanceof WLCX11Window x11 && x11.nativeGeometry != null) {
+			WaylandCraft.LOGGER.info("WLC render fit window={} title={} appID={} source={}x{} framebuffer={}x{} x11={}x{}+{}+{} draw={}x{}+{}+{} scale={}", element.window.getHandle(), x11.title, x11.appID, fit.sourceWidth(), fit.sourceHeight(), buf.getWidth(), buf.getHeight(), x11.nativeGeometry.width(), x11.nativeGeometry.height(), x11.nativeGeometry.x(), x11.nativeGeometry.y(), fit.width(), fit.height(), fit.x(), fit.y(), fit.scale());
+		}
+		else {
+			WaylandCraft.LOGGER.info("WLC render fit window={} source={}x{} framebuffer={}x{} geometry={}x{} draw={}x{}+{}+{} scale={}", element.window.getHandle(), fit.sourceWidth(), fit.sourceHeight(), buf.getWidth(), buf.getHeight(), element.window.geometry.width(), element.window.geometry.height(), fit.width(), fit.height(), fit.x(), fit.y(), fit.scale());
+		}
+	}
+
+	private void logPointerMapping(String phase, WindowElement element, double screenX, double screenY, double rootX, double rootY, WLCSurface surface, double surfaceX, double surfaceY) {
+		if(!WaylandCraft.DEBUG_WINDOWS) return;
+
+		long now = System.nanoTime();
+		if(now - debugLastPointerLogNanos < 250_000_000L) return;
+		debugLastPointerLogNanos = now;
+
+		FitRect fit = element.framebufferFit();
+		WaylandCraft.LOGGER.info("WLC wm pointer {} window={} screen={}x{} root={}x{} surface={} rel={}x{} draw={}x{}+{}+{} scale={}", phase, element.window.getHandle(), screenX, screenY, rootX, rootY, surface.getDebugHandle(), surfaceX, surfaceY, fit.width(), fit.height(), fit.x(), fit.y(), fit.scale());
 	}
 	
 	public static class WindowElement {
@@ -571,11 +640,27 @@ public class WindowManagerScreen extends Screen {
 		public WLCAbstractWindow window;
 		public float x;
 		public float y;
+		public float scale;
 		
-		public WindowElement(WLCAbstractWindow window, float x, float y) {
+		public WindowElement(WLCAbstractWindow window, float x, float y, float scale) {
 			this.window = window;
 			this.x = x;
 			this.y = y;
+			this.scale = scale;
+		}
+
+		public FitRect framebufferFit() {
+			WindowFramebuffer buf = window.framebuffer;
+			if(buf == null) return new FitRect(x, y, 0, 0, scale, 0, 0);
+			return new FitRect(x - buf.getXOff() * scale, y - buf.getYOff() * scale, buf.getWidth() * scale, buf.getHeight() * scale, scale, buf.getWidth(), buf.getHeight());
+		}
+
+		public float screenToRootX(double screenX) {
+			return (float) ((screenX - x) / scale);
+		}
+
+		public float screenToRootY(double screenY) {
+			return (float) ((screenY - y) / scale);
 		}
 		
 	}

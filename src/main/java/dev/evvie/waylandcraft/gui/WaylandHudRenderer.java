@@ -12,6 +12,7 @@ import dev.evvie.waylandcraft.bridge.WLCAbstractWindow.SurfaceGeometry;
 import dev.evvie.waylandcraft.bridge.WLCToplevel;
 import dev.evvie.waylandcraft.desktop.DesktopEntry;
 import dev.evvie.waylandcraft.render.RenderUtils;
+import dev.evvie.waylandcraft.render.RenderUtils.FitRect;
 import dev.evvie.waylandcraft.render.WindowFramebuffer;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -102,15 +103,12 @@ public class WaylandHudRenderer {
 			
 			SurfaceGeometry geometry = wlc.pinnedToplevel.geometry;
 			
-			int x = -buf.getXOff() - geometry.x();
-			int y = -buf.getYOff() - geometry.y();
-			int w = buf.getWidth();
-			int h = buf.getHeight();
+			FitRect fit = RenderUtils.aspectFit(buf, 0, 0, geometry.width(), geometry.height());
 			
 			Matrix3x2fStack stack = context.pose();
 			stack.pushMatrix();
 			stack.scale(1.0f / guiScale * 0.5f, 1.0f / guiScale * 0.5f);
-			RenderUtils.renderFramebuffer2D(context, buf, x, y, w, h);
+			RenderUtils.renderFramebuffer2D(context, buf, fit);
 			stack.popMatrix();
 		}
 	}

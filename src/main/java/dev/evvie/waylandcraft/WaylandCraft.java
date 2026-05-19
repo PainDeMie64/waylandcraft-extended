@@ -59,6 +59,8 @@ import net.minecraft.world.phys.Vec3;
 public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	public static final String MOD_ID = "waylandcraft";
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+	public static final boolean DEBUG_WINDOWS = envFlagEnabled("WAYLANDCRAFT_DEBUG_WINDOWS");
+	public static final boolean DEBUG_OVERLAY = envFlagEnabled("WAYLANDCRAFT_DEBUG_OVERLAY");
 	private static final KeyMapping.Category KEYBIND_CATEGORY = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "keys"));
 	
 	public static WaylandCraft instance;
@@ -98,6 +100,15 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	public boolean playerUsingWindowItem = false;
 	
 	public @Nullable CursorShape cursorShape = null;
+	private int debugOutputWidth = -1;
+	private int debugOutputHeight = -1;
+	private int debugOutputBoundsWidth = -1;
+	private int debugOutputBoundsHeight = -1;
+
+	private static boolean envFlagEnabled(String name) {
+		String value = System.getenv(name);
+		return value != null && !value.isBlank() && !value.equals("0") && !value.equalsIgnoreCase("false") && !value.equalsIgnoreCase("no");
+	}
 	
 	@Override
 	public void onInitialize() {
@@ -107,6 +118,9 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		LOGGER.info("Initializing WaylandCraft");
+		if(DEBUG_WINDOWS || DEBUG_OVERLAY) {
+			LOGGER.info("WLC debug flags windows={} overlay={}", DEBUG_WINDOWS, DEBUG_OVERLAY);
+		}
 		
 		instance = this;
 		
@@ -339,7 +353,22 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		Size size = bridge.getOutputSize();
 		if(size.width() != outputWidth || size.height() != outputHeight) {
 			bridge.resizeOutput(outputWidth, outputHeight);
-			if(!inWMScreen) bridge.setOutputBounds(outputWidth, outputHeight);
+		}
+		if(DEBUG_WINDOWS && (debugOutputWidth != outputWidth || debugOutputHeight != outputHeight)) {
+			LOGGER.info("WLC output size {}x{} inWMScreen={}", outputWidth, outputHeight, inWMScreen);
+			debugOutputWidth = outputWidth;
+			debugOutputHeight = outputHeight;
+		}
+
+		Size bounds = bridge.getOutputBounds();
+		if(!inWMScreen && (bounds.width() != outputWidth || bounds.height() != outputHeight)) {
+			bridge.setOutputBounds(outputWidth, outputHeight);
+		}
+		Size updatedBounds = bridge.getOutputBounds();
+		if(DEBUG_WINDOWS && (debugOutputBoundsWidth != updatedBounds.width() || debugOutputBoundsHeight != updatedBounds.height())) {
+			LOGGER.info("WLC output bounds {}x{} inWMScreen={}", updatedBounds.width(), updatedBounds.height(), inWMScreen);
+			debugOutputBoundsWidth = updatedBounds.width();
+			debugOutputBoundsHeight = updatedBounds.height();
 		}
 	}
 	

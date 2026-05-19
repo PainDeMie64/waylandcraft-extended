@@ -8,6 +8,7 @@ import dev.evvie.waylandcraft.bridge.WLCToplevel;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.Size;
 import dev.evvie.waylandcraft.item.WindowItem;
 import dev.evvie.waylandcraft.mixin.IItemInHandRendererMixin;
+import dev.evvie.waylandcraft.render.RenderUtils.FitRect;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.util.Mth;
@@ -92,10 +93,11 @@ public class WindowInHandRenderer {
 		poseStack.scale(wscale, hscale, 1);
 		poseStack.translate(-0.5, -0.5, 0);
 		
-		Vec3 tl = new Vec3(0, 1, 0);
-		Vec3 bl = new Vec3(0, 0, 0);
-		Vec3 br = new Vec3(1, 0, 0);
-		Vec3 tr = new Vec3(1, 1, 0);
+		FitRect fit = RenderUtils.aspectFit(toplevel.framebuffer, 0, 0, 1, 1);
+		Vec3 tl = new Vec3(fit.x(), 1 - fit.y(), 0);
+		Vec3 bl = new Vec3(fit.x(), 1 - fit.bottom(), 0);
+		Vec3 br = new Vec3(fit.right(), 1 - fit.bottom(), 0);
+		Vec3 tr = new Vec3(fit.right(), 1 - fit.y(), 0);
 		
 		RenderUtils.renderFramebuffer(toplevel.framebuffer, poseStack, collector, false, tl, bl, br, tr);
 	}

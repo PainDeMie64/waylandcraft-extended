@@ -228,6 +228,25 @@ impl WLCState {
         Rectangle::from_size(self.output.bounds())
     }
 
+    fn fullscreen_x11_geometry(&self) -> Rectangle<i32, Logical> {
+        Rectangle::from_size(self.output.size())
+    }
+
+    fn fullscreen_x11_geometry_for(
+        &self,
+        window: &X11Surface,
+    ) -> Rectangle<i32, Logical> {
+        let mut geometry = window.geometry();
+
+        if geometry.size.w <= 1 || geometry.size.h <= 1 {
+            return self.fullscreen_x11_geometry();
+        }
+
+        geometry.loc.x = 0;
+        geometry.loc.y = 0;
+        geometry
+    }
+
     fn clamped_x11_geometry(
         &self,
         mut geometry: Rectangle<i32, Logical>,
@@ -476,8 +495,12 @@ impl XwmHandler for WLCState {
         }
         let _ = window.set_mapped(true);
         self.track_x11_window(window.clone());
-        let _ = window
-            .configure(Some(self.clamped_x11_geometry(window.geometry())));
+        let geometry = if window.is_fullscreen() {
+            self.fullscreen_x11_geometry_for(&window)
+        } else {
+            self.clamped_x11_geometry(window.geometry())
+        };
+        let _ = window.configure(Some(geometry));
     }
 
     fn mapped_override_redirect_window(
@@ -538,19 +561,26 @@ impl XwmHandler for WLCState {
         if let Some(h) = h {
             geometry.size.h = h.max(1) as i32;
         }
+        let applied = if window.is_fullscreen() {
+            self.fullscreen_x11_geometry_for(&window)
+        } else {
+            self.clamped_x11_geometry(geometry)
+        };
+
         if debug_x11_enabled() {
             eprintln!(
-                "WLC X11 configure request title={:?} class={:?} requested=({:?},{:?},{:?},{:?}) applied={:?}",
+                "WLC X11 configure request title={:?} class={:?} fullscreen={} requested=({:?},{:?},{:?},{:?}) applied={:?}",
                 window.title(),
                 window.class(),
+                window.is_fullscreen(),
                 x,
                 y,
                 w,
                 h,
-                self.clamped_x11_geometry(geometry)
+                applied
             );
         }
-        let _ = window.configure(Some(self.clamped_x11_geometry(geometry)));
+        let _ = window.configure(Some(applied));
     }
 
     fn configure_notify(
@@ -584,16 +614,18 @@ impl XwmHandler for WLCState {
     }
 
     fn fullscreen_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        let geometry = self.fullscreen_x11_geometry_for(&window);
         if debug_x11_enabled() {
             eprintln!(
-                "WLC X11 fullscreen request title={:?} class={:?} output={:?}",
+                "WLC X11 fullscreen request title={:?} class={:?} output={:?} mode={:?}",
                 window.title(),
                 window.class(),
-                self.output_x11_geometry()
+                self.fullscreen_x11_geometry(),
+                geometry
             );
         }
         let _ = window.set_fullscreen(true);
-        let _ = window.configure(Some(self.output_x11_geometry()));
+        let _ = window.configure(Some(geometry));
     }
 
     fn unfullscreen_request(&mut self, _xwm: XwmId, window: X11Surface) {

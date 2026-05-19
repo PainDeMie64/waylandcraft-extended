@@ -147,5 +147,51 @@ public class RenderUtils {
 		if(!framebuffer.isValid()) return;
 		((IGuiGraphicsExtractor) context).invokeInnerBlit(WINDOW_BLIT, framebuffer.getTextureLocation(), x, x + w, y, y + h, 0.0f, 1.0f, 0.0f, 1.0f, -1);
 	}
+
+	public static void renderFramebuffer2D(GuiGraphicsExtractor context, WindowFramebuffer framebuffer, FitRect fit) {
+		renderFramebuffer2D(context, framebuffer, (int) Math.round(fit.x()), (int) Math.round(fit.y()), (int) Math.round(fit.width()), (int) Math.round(fit.height()));
+	}
+
+	public static FitRect aspectFit(double sourceWidth, double sourceHeight, double destX, double destY, double destWidth, double destHeight) {
+		if(sourceWidth <= 0 || sourceHeight <= 0 || destWidth <= 0 || destHeight <= 0) {
+			return new FitRect(destX, destY, 0, 0, 0, sourceWidth, sourceHeight);
+		}
+
+		double scale = Math.min(destWidth / sourceWidth, destHeight / sourceHeight);
+		double width = sourceWidth * scale;
+		double height = sourceHeight * scale;
+		double x = destX + (destWidth - width) / 2.0;
+		double y = destY + (destHeight - height) / 2.0;
+
+		return new FitRect(x, y, width, height, scale, sourceWidth, sourceHeight);
+	}
+
+	public static FitRect aspectFit(WindowFramebuffer framebuffer, double destX, double destY, double destWidth, double destHeight) {
+		return aspectFit(framebuffer.getWidth(), framebuffer.getHeight(), destX, destY, destWidth, destHeight);
+	}
+
+	public static record FitRect(double x, double y, double width, double height, double scale, double sourceWidth, double sourceHeight) {
+
+		public double right() {
+			return x + width;
+		}
+
+		public double bottom() {
+			return y + height;
+		}
+
+		public boolean contains(double px, double py) {
+			return scale > 0 && px >= x && py >= y && px <= right() && py <= bottom();
+		}
+
+		public double sourceX(double px) {
+			return (px - x) / scale;
+		}
+
+		public double sourceY(double py) {
+			return (py - y) / scale;
+		}
+
+	}
 	
 }

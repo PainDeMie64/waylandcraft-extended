@@ -400,6 +400,7 @@ public class WaylandCraftBridge {
 				updateSurfaceData(instance, surface);
 				calculateSubpos(surface);
 			}
+			updateGeometry(window);
 		}
 
 		for(WLCToplevel toplevel : toplevels) {
@@ -493,6 +494,7 @@ public class WaylandCraftBridge {
 		else {
 			if(window instanceof WLCX11Window && window.surface != null && window.surface.width() > 0 && window.surface.height() > 0) {
 				WLCX11Window x11 = (WLCX11Window) window;
+				x11.nativeGeometry = new SurfaceGeometry(data[0], data[1], data[2], data[3]);
 				if(x11.debugNativeX != data[0] || x11.debugNativeY != data[1] || x11.debugNativeWidth != data[2] || x11.debugNativeHeight != data[3] || x11.debugSurfaceWidth != window.surface.width() || x11.debugSurfaceHeight != window.surface.height()) {
 					WaylandCraft.LOGGER.info("WLC X11 geometry window={} native={}x{}+{}+{} surface={}x{} title={} appID={}", window.getHandle(), data[2], data[3], data[0], data[1], window.surface.width(), window.surface.height(), x11.title, x11.appID);
 					x11.debugNativeX = data[0];
@@ -504,8 +506,6 @@ public class WaylandCraftBridge {
 				}
 				data[0] = 0;
 				data[1] = 0;
-				data[2] = window.surface.width();
-				data[3] = window.surface.height();
 			}
 			geometry = new SurfaceGeometry(data[0], data[1], data[2], data[3]);
 		}

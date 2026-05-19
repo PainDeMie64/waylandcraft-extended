@@ -694,6 +694,16 @@ pub extern "system" fn updateSurfaceData<'l>(
         let mut vp_data_guard = data.cached_state.get::<ViewportCachedState>();
         let vp_data = vp_data_guard.deref_mut().current();
 
+        unsafe {
+            env.call_method_unchecked(
+                &obj,
+                (WLCSurface_class, "clearViewport", "()V"),
+                ReturnType::Primitive(Primitive::Void),
+                &[],
+            )
+            .unwrap();
+        }
+
         if let Some(src) = vp_data.src {
             unsafe {
                 env.call_method_unchecked(
@@ -721,6 +731,16 @@ pub extern "system" fn updateSurfaceData<'l>(
                 )
                 .unwrap();
             }
+        }
+
+        unsafe {
+            env.call_method_unchecked(
+                &obj,
+                (WLCSurface_class, "logStateIfChanged", "()V"),
+                ReturnType::Primitive(Primitive::Void),
+                &[],
+            )
+            .unwrap();
         }
     });
 }
@@ -1706,7 +1726,8 @@ pub extern "system" fn x11WindowFullscreen<'l>(
     let instance = jptr_to_instance(ptr);
     let window = jptr_to_x11window(handle);
     let _ = window.set_fullscreen(true);
-    let _ = window.configure(Some(instance.state.output_x11_geometry()));
+    let _ = window
+        .configure(Some(instance.state.fullscreen_x11_geometry_for(window)));
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
