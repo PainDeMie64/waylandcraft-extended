@@ -47,6 +47,8 @@ public class WaylandCraftBridge {
 
 	private @Nullable Integer lastMoveRequestSerial = null;
 	private @Nullable ResizeRequest lastResizeRequest = null;
+	private long debugLastPointerFocusSurface = 0;
+	private String debugLastPointerFocusReason = "none";
 
 	static {
 		boolean loaded = false;
@@ -599,6 +601,15 @@ public class WaylandCraftBridge {
 	}
 
 	public void sendMotionRefocus(WLCSurface surface, double x, double y) {
+		sendMotionRefocus(surface, x, y, "refocus");
+	}
+
+	public void sendMotionRefocus(WLCSurface surface, double x, double y, String reason) {
+		debugLastPointerFocusSurface = surface.getDebugHandle();
+		debugLastPointerFocusReason = reason;
+		if(WaylandCraft.DEBUG_WINDOWS) {
+			WaylandCraft.LOGGER.info("WLC pointer native refocus reason={} surface={} x={} y={}", reason, debugLastPointerFocusSurface, x, y);
+		}
 		pointerMotionFocus(instance, surface.getHandle(), x, y);
 	}
 
@@ -607,6 +618,11 @@ public class WaylandCraftBridge {
 	}
 
 	public void sendMotionOutside() {
+		debugLastPointerFocusSurface = 0;
+		debugLastPointerFocusReason = "outside";
+		if(WaylandCraft.DEBUG_WINDOWS) {
+			WaylandCraft.LOGGER.info("WLC pointer native leave");
+		}
 		pointerLeave(instance);
 	}
 
@@ -619,6 +635,9 @@ public class WaylandCraftBridge {
 	}
 
 	public int sendButton(int button, int state) {
+		if(WaylandCraft.DEBUG_WINDOWS) {
+			WaylandCraft.LOGGER.info("WLC pointer native button button={} state={} focusSurface={} focusReason={}", button, state, debugLastPointerFocusSurface, debugLastPointerFocusReason);
+		}
 		return pointerButton(instance, button, state);
 	}
 

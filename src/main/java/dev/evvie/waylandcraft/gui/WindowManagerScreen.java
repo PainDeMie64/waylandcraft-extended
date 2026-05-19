@@ -352,7 +352,7 @@ public class WindowManagerScreen extends Screen {
 
 				if(wlc.bridge.inputRegionContains(surface, rx, ry)) {
 					logPointerMapping("hover", element, x, y, sx, sy, surface, rx, ry);
-					return new HoveredSurface(surface, rx, ry);
+					return new HoveredSurface(element, surface, rx, ry);
 				}
 			}
 			}
@@ -434,10 +434,14 @@ public class WindowManagerScreen extends Screen {
 		
 		HoveredSurface hovered = surfaceUnderPointer(x, y);
 		if(implicitGrab == null && hovered != null) {
-			implicitGrab = new ImplicitGrab(hovered.surface);
+			implicitGrab = new ImplicitGrab(hovered);
 		}
 		
 		if(implicitGrab != null && !implicitGrab.pressedMouseButtons.contains(event.button())) {
+			HoveredSurface target = hoveredForImplicitGrab(x, y);
+			if(target != null) focusHoveredSurface(target, "wm-click");
+			else logImplicitGrabMissing("wm-click", event.button());
+
 			implicitGrab.pressedMouseButtons.add(event.button());
 			wlc.bridge.sendButton(0x110 + event.button(), 1);
 			
@@ -457,6 +461,12 @@ public class WindowManagerScreen extends Screen {
 		if(super.mouseReleased(event)) return true;
 		
 		if(implicitGrab != null && implicitGrab.pressedMouseButtons.contains(event.button())) {
+			double x = event.x() * guiScale;
+			double y = event.y() * guiScale;
+			HoveredSurface target = hoveredForImplicitGrab(x, y);
+			if(target != null) focusHoveredSurface(target, "wm-release");
+			else logImplicitGrabMissing("wm-release", event.button());
+
 			implicitGrab.pressedMouseButtons.remove(event.button());
 			wlc.bridge.sendButton(0x110 + event.button(), 0);
 			
@@ -517,6 +527,7 @@ public class WindowManagerScreen extends Screen {
 		HoveredSurface hovered = surfaceUnderPointer(mouseX, mouseY);
 		
 		if(hovered != null) {
+			focusHoveredSurface(hovered, "wm-scroll");
 			wlc.bridge.sendScroll(0, -scrollY * 10);
 			wlc.bridge.sendScroll(1, -scrollX * 10);
 			return true;
@@ -634,6 +645,59 @@ public class WindowManagerScreen extends Screen {
 		FitRect fit = element.framebufferFit();
 		WaylandCraft.LOGGER.info("WLC wm pointer {} window={} screen={}x{} root={}x{} surface={} rel={}x{} draw={}x{}+{}+{} scale={}", phase, element.window.getHandle(), screenX, screenY, rootX, rootY, surface.getDebugHandle(), surfaceX, surfaceY, fit.width(), fit.height(), fit.x(), fit.y(), fit.scale());
 	}
+
+	private void focusHoveredSurface(HoveredSurface hovered, String reason) {
+		WLCToplevel root = rootToplevel(hovered.element.window);
+		if(WaylandCraft.DEBUG_WINDOWS) {
+			WaylandCraft.LOGGER.info("WLC wm pointer route reason={} window={} surface={} rel={}x{}", reason, describeWindow(hovered.element.window), hovered.surface.getDebugHandle(), hovered.rx, hovered.ry);
+		}
+
+		wlc.bridge.sendMotionRefocus(hovered.surface, hovered.rx, hovered.ry, reason);
+		if(root != null) wlc.bridge.focusSurface(root);
+	}
+
+	private @Nullable HoveredSurface hoveredForImplicitGrab(double screenX, double screenY) {
+		if(implicitGrab == null) return null;
+
+		WindowElement element = elementForSurface(implicitGrab.surface);
+		if(element == null) return null;
+
+		float rootX = element.screenToRootX(screenX);
+		float rootY = element.screenToRootY(screenY);
+		float rx = rootX - implicitGrab.surface.xSubpos;
+		float ry = rootY - implicitGrab.surface.ySubpos;
+		return new HoveredSurface(element, implicitGrab.surface, rx, ry);
+	}
+
+	private @Nullable WindowElement elementForSurface(WLCSurface target) {
+		for(WindowElement element : windows) {
+			for(WLCSurface surface = element.window.getSurfaceTree(); surface != null; surface = surface.getNextChild()) {
+				if(surface == target) return element;
+			}
+		}
+		return null;
+	}
+
+	private @Nullable WLCToplevel rootToplevel(WLCAbstractWindow window) {
+		WLCAbstractWindow root = window;
+		while(root instanceof WLCPopup popup) {
+			root = popup.getParent();
+		}
+		return root instanceof WLCToplevel toplevel ? toplevel : null;
+	}
+
+	private String describeWindow(WLCAbstractWindow window) {
+		WLCToplevel root = rootToplevel(window);
+		if(root != null) {
+			return "window=" + root.getHandle() + " title=" + root.title + " appID=" + root.appID + " fullscreen=" + root.fullscreen;
+		}
+		return "window=" + window.getHandle() + " type=" + window.getClass().getSimpleName();
+	}
+
+	private void logImplicitGrabMissing(String reason, int button) {
+		if(!WaylandCraft.DEBUG_WINDOWS || implicitGrab == null) return;
+		WaylandCraft.LOGGER.info("WLC wm pointer route reason={} button={} missing-surface={} owner={}", reason, button, implicitGrab.surface.getDebugHandle(), describeWindow(implicitGrab.window));
+	}
 	
 	public static class WindowElement {
 		
@@ -709,15 +773,17 @@ public class WindowManagerScreen extends Screen {
 		
 	}
 	
-	private static record HoveredSurface(WLCSurface surface, float rx, float ry) {}
+	private static record HoveredSurface(WindowElement element, WLCSurface surface, float rx, float ry) {}
 	
 	private static class ImplicitGrab {
 		
+		public final WLCAbstractWindow window;
 		public final WLCSurface surface;
 		public HashSet<Integer> pressedMouseButtons = new HashSet<Integer>();
 		
-		public ImplicitGrab(WLCSurface surface) {
-			this.surface = surface;
+		public ImplicitGrab(HoveredSurface hovered) {
+			this.window = hovered.element.window;
+			this.surface = hovered.surface;
 		}
 		
 	}

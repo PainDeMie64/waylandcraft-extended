@@ -409,14 +409,16 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	}
 
 	public void disablePointerCapture(String reason) {
-		if(pointerCapture == null) return;
-
-		if(DEBUG_WINDOWS) {
+		if(DEBUG_WINDOWS && pointerCapture != null) {
 			LOGGER.info("WLC pointer capture end reason={} surface={} owner={}", reason, pointerCapture.surface.getDebugHandle(), describeSurfaceOwner(pointerCapture.surface));
 		}
 
 		bridge.unlockPointer();
+		bridge.sendMotionOutside();
 		pointerCapture = null;
+		hoveredDisplay = null;
+		cursorShape = null;
+		overridePickBlock = false;
 	}
 	
 	private void processPointerMotion(Camera camera) {
@@ -556,13 +558,15 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		if(action == 1) {
 			// Start new implicit grab when conditions are met
 			if(!pointerGrabs.isImplicitActive() && hoveredDisplay != null && hoveredDisplay.dist >= 0) {
+				focusHoveredDisplay("world-button-press", button);
 				pointerGrabs.startImplicit(hoveredDisplay);
 				WLCAbstractWindow window = hoveredDisplay.target.window;
-				if(window instanceof WLCToplevel) bridge.focusSurface((WLCToplevel) window);
+				bridge.focusSurface(rootToplevel(window));
 			}
 			
 			// If an implicit pointer grab is now active, capture the button press
 			if(pointerGrabs.isImplicitActive()) {
+				focusHoveredDisplay("world-implicit-button", button);
 				pointerGrabs.sendImplicitButton(button);
 				return true;
 			}
@@ -572,6 +576,21 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		}
 		
 		return false;
+	}
+
+	private void focusHoveredDisplay(String reason, int button) {
+		if(hoveredDisplay == null || hoveredDisplay.dist < 0) return;
+
+		WLCSurface surface = hoveredDisplay.surface;
+		Vec3 rel = hoveredDisplay.surfaceLocalRelative;
+		WLCAbstractWindow window = hoveredDisplay.target.window;
+
+		if(DEBUG_WINDOWS) {
+			LOGGER.info("WLC world pointer route reason={} button={} window={} surface={} rel={}x{}", reason, button, describeWindow(window), surface.getDebugHandle(), rel.x, rel.y);
+		}
+
+		bridge.sendMotionRefocus(surface, rel.x, rel.y, reason);
+		bridge.focusSurface(rootToplevel(window));
 	}
 	
 	private boolean canStartInteracting() {
@@ -607,11 +626,9 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			if(hoveredDisplay.dist < 0) return true;
 			
 			// Multiplication by -10 is the inverse transformation from what GLFW does on wayland
+			focusHoveredDisplay("world-scroll", -1);
 			bridge.sendScroll(0, -scrollY * 10);
 			bridge.sendScroll(1, -scrollX * 10);
-			
-			WLCAbstractWindow window = hoveredDisplay.target.window;
-			if(window instanceof WLCToplevel) bridge.focusSurface((WLCToplevel) window);
 			
 			return true;
 		}
@@ -682,6 +699,14 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		}
 
 		return "window=" + window.getHandle() + " type=" + window.getClass().getSimpleName();
+	}
+
+	private @Nullable WLCToplevel rootToplevel(WLCAbstractWindow window) {
+		WLCAbstractWindow root = window;
+		while(root instanceof WLCPopup popup) {
+			root = popup.getParent();
+		}
+		return root instanceof WLCToplevel toplevel ? toplevel : null;
 	}
 	
 	public static int correctScancode(int scancode) {
