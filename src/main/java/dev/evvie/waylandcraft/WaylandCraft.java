@@ -227,19 +227,32 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	}
 	
 	public void disableKeyboardCapture() {
-		if(keyboardCaptureMode == KeyboardCaptureMode.NONE) return;
+		disableKeyboardCapture("keyboard-capture-disabled");
+	}
+
+	public void disableKeyboardCapture(String reason) {
+		if(keyboardCaptureMode == KeyboardCaptureMode.NONE) {
+			disablePointerCapture(reason);
+			return;
+		}
 		
 		keyboardCaptureMode = KeyboardCaptureMode.NONE;
 		bridge.deactivateKeyboard();
-		disablePointerCapture();
+		disablePointerCapture(reason);
+	}
+
+	private void releaseInputCaptureForUi(String reason) {
+		disableKeyboardCapture(reason);
+		bridge.deactivateKeyboard();
+		pointerGrabs.releaseAll();
+		bridge.sendMotionOutside();
 	}
 	
 	public void onClientTick(Minecraft minecraft) {
 		if(minecraft.player == null) return;
 		
 		if(keyOpenScreen.consumeClick()) {
-			keyboardCaptureMode = KeyboardCaptureMode.NONE;
-			pointerGrabs.releaseAll();
+			releaseInputCaptureForUi("open-window-manager");
 			minecraft.setScreen(new WindowManagerScreen(WaylandCraft.instance));
 			return;
 		}
@@ -392,7 +405,16 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	}
 	
 	public void disablePointerCapture() {
+		disablePointerCapture("pointer-capture-disabled");
+	}
+
+	public void disablePointerCapture(String reason) {
 		if(pointerCapture == null) return;
+
+		if(DEBUG_WINDOWS) {
+			LOGGER.info("WLC pointer capture end reason={} surface={} owner={}", reason, pointerCapture.surface.getDebugHandle(), describeSurfaceOwner(pointerCapture.surface));
+		}
+
 		bridge.unlockPointer();
 		pointerCapture = null;
 	}
@@ -402,14 +424,14 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		if(pointerCapture != null) {
 			if(!pointerCapture.surface.isAlive()) {
-				pointerCapture = null;
+				disablePointerCapture("surface-dead");
 				return;
 			}
 			
 			this.cursorShape = bridge.getCursorShape();
 			
 			if(!bridge.maybeLockPointer(pointerCapture.surface)) {
-				disablePointerCapture();
+				disablePointerCapture("lock-lost");
 			}
 			
 			return;
@@ -489,6 +511,9 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			
 			if(keyboardCaptureMode != KeyboardCaptureMode.NONE && bridge.maybeLockPointer(surface)) {
 				pointerCapture = new PointerCapture(surface, rel.x, rel.y);
+				if(DEBUG_WINDOWS) {
+					LOGGER.info("WLC pointer capture start reason=keyboard-capture-lock surface={} owner={} at={}x{}", surface.getDebugHandle(), describeSurfaceOwner(surface), rel.x, rel.y);
+				}
 			}
 		}
 		else {
@@ -501,6 +526,10 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	 */
 	public boolean onButtonPress(long windowHandle, int button, int action, int modifiers) {
 		if(pointerCapture != null) {
+			if(DEBUG_WINDOWS && action == 1) {
+				LOGGER.info("WLC pointer capture button route button={} surface={} owner={} hovered={}", button, pointerCapture.surface.getDebugHandle(), describeSurfaceOwner(pointerCapture.surface), hoveredDisplay == null ? "none" : describeWindow(hoveredDisplay.target.window));
+			}
+
 			if(action == 1 && !pointerCapture.pressedButtons.contains(button)) {
 				bridge.sendButton(0x110 + button, 1);
 				pointerCapture.pressedButtons.add(button);
@@ -624,6 +653,35 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		}
 		
 		return true;
+	}
+
+	private String describeSurfaceOwner(@Nullable WLCSurface surface) {
+		if(surface == null || bridge == null) return "none";
+
+		for(WLCToplevel toplevel : bridge.getToplevels()) {
+			if(surfaceInTree(toplevel.getSurfaceTree(), surface)) return describeWindow(toplevel);
+		}
+
+		for(WLCPopup popup : bridge.getPopups()) {
+			if(surfaceInTree(popup.getSurfaceTree(), surface)) return describeWindow(popup);
+		}
+
+		return "unknown";
+	}
+
+	private boolean surfaceInTree(@Nullable WLCSurface root, WLCSurface target) {
+		for(WLCSurface surface = root; surface != null; surface = surface.getNextChild()) {
+			if(surface == target) return true;
+		}
+		return false;
+	}
+
+	private String describeWindow(WLCAbstractWindow window) {
+		if(window instanceof WLCToplevel toplevel) {
+			return "window=" + toplevel.getHandle() + " title=" + toplevel.title + " appID=" + toplevel.appID + " fullscreen=" + toplevel.fullscreen;
+		}
+
+		return "window=" + window.getHandle() + " type=" + window.getClass().getSimpleName();
 	}
 	
 	public static int correctScancode(int scancode) {
