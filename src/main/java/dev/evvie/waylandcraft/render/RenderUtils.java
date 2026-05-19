@@ -189,7 +189,10 @@ public class RenderUtils {
 	}
 
 	public static void renderSolidRect(PoseStack poseStack, SubmitNodeCollector collector, Vec3 localX, Vec3 localY, double x, double y, double w, double h, double z, int color) {
-		Vec3 zOff = new Vec3(0, 0, z);
+		renderSolidRect(poseStack, collector, localX, localY, x, y, w, h, new Vec3(0, 0, z), color);
+	}
+
+	public static void renderSolidRect(PoseStack poseStack, SubmitNodeCollector collector, Vec3 localX, Vec3 localY, double x, double y, double w, double h, Vec3 zOff, int color) {
 		Vec3 tl = localX.scale(x).add(localY.scale(y)).add(zOff);
 		Vec3 bl = localX.scale(x).add(localY.scale(y + h)).add(zOff);
 		Vec3 br = localX.scale(x + w).add(localY.scale(y + h)).add(zOff);
@@ -198,13 +201,21 @@ public class RenderUtils {
 	}
 
 	public static void renderSolidOutline(PoseStack poseStack, SubmitNodeCollector collector, Vec3 localX, Vec3 localY, double x, double y, double w, double h, double z, double thickness, int color) {
-		renderSolidRect(poseStack, collector, localX, localY, x, y, w, thickness, z, color);
-		renderSolidRect(poseStack, collector, localX, localY, x, y + h - thickness, w, thickness, z, color);
-		renderSolidRect(poseStack, collector, localX, localY, x, y, thickness, h, z, color);
-		renderSolidRect(poseStack, collector, localX, localY, x + w - thickness, y, thickness, h, z, color);
+		renderSolidOutline(poseStack, collector, localX, localY, x, y, w, h, new Vec3(0, 0, z), thickness, color);
+	}
+
+	public static void renderSolidOutline(PoseStack poseStack, SubmitNodeCollector collector, Vec3 localX, Vec3 localY, double x, double y, double w, double h, Vec3 zOff, double thickness, int color) {
+		renderSolidRect(poseStack, collector, localX, localY, x, y, w, thickness, zOff, color);
+		renderSolidRect(poseStack, collector, localX, localY, x, y + h - thickness, w, thickness, zOff, color);
+		renderSolidRect(poseStack, collector, localX, localY, x, y, thickness, h, zOff, color);
+		renderSolidRect(poseStack, collector, localX, localY, x + w - thickness, y, thickness, h, zOff, color);
 	}
 
 	public static void renderSolidLine(PoseStack poseStack, SubmitNodeCollector collector, Vec3 localX, Vec3 localY, double x1, double y1, double x2, double y2, double z, double thickness, int color) {
+		renderSolidLine(poseStack, collector, localX, localY, x1, y1, x2, y2, new Vec3(0, 0, z), thickness, color);
+	}
+
+	public static void renderSolidLine(PoseStack poseStack, SubmitNodeCollector collector, Vec3 localX, Vec3 localY, double x1, double y1, double x2, double y2, Vec3 zOff, double thickness, int color) {
 		double dx = x2 - x1;
 		double dy = y2 - y1;
 		double len = Math.sqrt(dx * dx + dy * dy);
@@ -212,7 +223,6 @@ public class RenderUtils {
 
 		double nx = -dy / len * thickness / 2.0;
 		double ny = dx / len * thickness / 2.0;
-		Vec3 zOff = new Vec3(0, 0, z);
 		Vec3 a = localX.scale(x1 + nx).add(localY.scale(y1 + ny)).add(zOff);
 		Vec3 b = localX.scale(x1 - nx).add(localY.scale(y1 - ny)).add(zOff);
 		Vec3 c = localX.scale(x2 - nx).add(localY.scale(y2 - ny)).add(zOff);

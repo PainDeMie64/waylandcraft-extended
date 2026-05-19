@@ -7,9 +7,11 @@ import org.joml.Vector3d;
 import com.mojang.blaze3d.vertex.PoseStack;
 
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow;
+import dev.evvie.waylandcraft.bridge.WLCAbstractWindow.SurfaceGeometry;
 import dev.evvie.waylandcraft.bridge.WLCSurface;
 import dev.evvie.waylandcraft.bridge.WLCToplevel;
 import dev.evvie.waylandcraft.bridge.WLCX11Window;
+import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.Size;
 import dev.evvie.waylandcraft.render.RenderUtils;
 import dev.evvie.waylandcraft.render.RenderUtils.FitRect;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
@@ -27,6 +29,9 @@ public class WindowDisplay {
 	private static final double CORNER_HANDLE = 54;
 	private static final double CORNER_INSET = 10;
 	private static final double CORNER_OUTSET = 22;
+	private static final double CHROME_DEPTH = 0.004;
+	private static final double CONTROL_BG_DEPTH = 0.006;
+	private static final double CONTROL_FG_DEPTH = 0.010;
 	private static final int OUTLINE_COLOR = 0xffffffff;
 	private static final int CONTROL_BG = 0xff15181d;
 	private static final int CONTROL_ICON = 0xffffffff;
@@ -128,8 +133,8 @@ public class WindowDisplay {
 	}
 
 	public void setPresentationSize(int width, int height) {
-		this.width = Math.clamp(width, 1, 10000);
-		this.height = Math.clamp(height, 1, 10000);
+		this.width = Math.max(width, 1);
+		this.height = Math.max(height, 1);
 		this.customPresentationSize = true;
 	}
 
@@ -160,8 +165,8 @@ public class WindowDisplay {
 		PoseStack poseStack = ctx.poseStack();
 		poseStack.pushPose();
 		poseStack.translate(originRel.x, originRel.y, originRel.z);
-		renderMonitorChrome(ctx, poseStack, localX, localY);
 		RenderUtils.renderFramebuffer(window.framebuffer, poseStack, ctx.submitNodeCollector(), true, tl, bl, br, tr, "world-display window=" + window.getHandle());
+		renderMonitorChrome(ctx, poseStack, localX, localY);
 		poseStack.popPose();
 	}
 
@@ -174,7 +179,11 @@ public class WindowDisplay {
 
 		if(!highlighted) return;
 
-		RenderUtils.renderSolidOutline(poseStack, ctx.submitNodeCollector(), localX, localY, x, y, w, h, 0, OUTLINE_THICKNESS, OUTLINE_COLOR);
+		Vec3 chromeDepth = normal.scale(CHROME_DEPTH);
+		Vec3 controlBgDepth = normal.scale(CONTROL_BG_DEPTH);
+		Vec3 controlFgDepth = normal.scale(CONTROL_FG_DEPTH);
+
+		RenderUtils.renderSolidOutline(poseStack, ctx.submitNodeCollector(), localX, localY, x, y, w, h, chromeDepth, OUTLINE_THICKNESS, OUTLINE_COLOR);
 		if(window instanceof WLCToplevel) {
 			for(MonitorControl control : MonitorControl.values()) {
 				if(!control.isButton()) continue;
@@ -182,51 +191,50 @@ public class WindowDisplay {
 				boolean enabled = isControlEnabled(control);
 				boolean hovered = WaylandCraft.instance != null && WaylandCraft.instance.isMonitorControlHovered(this, control);
 				if(control.isCornerResize()) {
-					renderCornerHandle(poseStack, ctx, localX, localY, rect, control, enabled && hovered);
+					renderCornerHandle(poseStack, ctx, localX, localY, controlFgDepth, rect, control, enabled && hovered);
 				}
 				else {
 					int iconColor = enabled ? CONTROL_ICON : CONTROL_DISABLED;
-					RenderUtils.renderSolidRect(poseStack, ctx.submitNodeCollector(), localX, localY, rect.x(), rect.y(), rect.width(), rect.height(), 0, CONTROL_BG);
-					RenderUtils.renderSolidOutline(poseStack, ctx.submitNodeCollector(), localX, localY, rect.x(), rect.y(), rect.width(), rect.height(), 0, OUTLINE_THICKNESS, OUTLINE_COLOR);
+					RenderUtils.renderSolidRect(poseStack, ctx.submitNodeCollector(), localX, localY, rect.x(), rect.y(), rect.width(), rect.height(), controlBgDepth, CONTROL_BG);
+					RenderUtils.renderSolidOutline(poseStack, ctx.submitNodeCollector(), localX, localY, rect.x(), rect.y(), rect.width(), rect.height(), controlFgDepth, OUTLINE_THICKNESS, OUTLINE_COLOR);
 					int accent = control == MonitorControl.CLOSE ? CONTROL_CLOSE : OUTLINE_COLOR;
-					renderControlIcon(poseStack, ctx, localX, localY, rect, control, iconColor, accent);
+					renderControlIcon(poseStack, ctx, localX, localY, controlFgDepth, rect, control, iconColor, accent);
 				}
 			}
 		}
 	}
 
-	private void renderCornerHandle(PoseStack poseStack, LevelRenderContext ctx, Vec3 localX, Vec3 localY, ControlRect rect, MonitorControl control, boolean hovered) {
+	private void renderCornerHandle(PoseStack poseStack, LevelRenderContext ctx, Vec3 localX, Vec3 localY, Vec3 depth, ControlRect rect, MonitorControl control, boolean hovered) {
 		int color = hovered ? (control.isMonitorResize() ? CONTROL_MONITOR_RESIZE : CONTROL_APP_RESIZE) : CONTROL_DISABLED;
 		double x1 = control.isLeftCorner() ? rect.x() : rect.x() + rect.width();
 		double y1 = control.isTopCorner() ? rect.y() : rect.y() + rect.height();
 		double x2 = control.isLeftCorner() ? rect.x() + rect.width() : rect.x();
 		double y2 = control.isTopCorner() ? rect.y() + rect.height() : rect.y();
-		RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x1, y1, x2, y1, 0, OUTLINE_THICKNESS + 1, color);
-		RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x1, y1, x1, y2, 0, OUTLINE_THICKNESS + 1, color);
+		RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x1, y1, x2, y1, depth, OUTLINE_THICKNESS + 1, color);
+		RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x1, y1, x1, y2, depth, OUTLINE_THICKNESS + 1, color);
 	}
 
-	private void renderControlIcon(PoseStack poseStack, LevelRenderContext ctx, Vec3 localX, Vec3 localY, ControlRect rect, MonitorControl control, int iconColor, int accentColor) {
+	private void renderControlIcon(PoseStack poseStack, LevelRenderContext ctx, Vec3 localX, Vec3 localY, Vec3 depth, ControlRect rect, MonitorControl control, int iconColor, int accentColor) {
 		double x = rect.x();
 		double y = rect.y();
 		double s = rect.width();
-		double z = 0;
 		double t = 5;
 		switch(control) {
 		case MOVE:
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.50, y + s * 0.22, x + s * 0.50, y + s * 0.78, z, t, iconColor);
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.22, y + s * 0.50, x + s * 0.78, y + s * 0.50, z, t, iconColor);
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.50, y + s * 0.22, x + s * 0.38, y + s * 0.34, z, t, iconColor);
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.50, y + s * 0.22, x + s * 0.62, y + s * 0.34, z, t, iconColor);
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.50, y + s * 0.78, x + s * 0.38, y + s * 0.66, z, t, iconColor);
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.50, y + s * 0.78, x + s * 0.62, y + s * 0.66, z, t, iconColor);
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.22, y + s * 0.50, x + s * 0.34, y + s * 0.38, z, t, iconColor);
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.22, y + s * 0.50, x + s * 0.34, y + s * 0.62, z, t, iconColor);
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.78, y + s * 0.50, x + s * 0.66, y + s * 0.38, z, t, iconColor);
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.78, y + s * 0.50, x + s * 0.66, y + s * 0.62, z, t, iconColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.50, y + s * 0.22, x + s * 0.50, y + s * 0.78, depth, t, iconColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.22, y + s * 0.50, x + s * 0.78, y + s * 0.50, depth, t, iconColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.50, y + s * 0.22, x + s * 0.38, y + s * 0.34, depth, t, iconColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.50, y + s * 0.22, x + s * 0.62, y + s * 0.34, depth, t, iconColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.50, y + s * 0.78, x + s * 0.38, y + s * 0.66, depth, t, iconColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.50, y + s * 0.78, x + s * 0.62, y + s * 0.66, depth, t, iconColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.22, y + s * 0.50, x + s * 0.34, y + s * 0.38, depth, t, iconColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.22, y + s * 0.50, x + s * 0.34, y + s * 0.62, depth, t, iconColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.78, y + s * 0.50, x + s * 0.66, y + s * 0.38, depth, t, iconColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.78, y + s * 0.50, x + s * 0.66, y + s * 0.62, depth, t, iconColor);
 			break;
 		case CLOSE:
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.28, y + s * 0.28, x + s * 0.72, y + s * 0.72, z, t + 1, accentColor);
-			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.72, y + s * 0.28, x + s * 0.28, y + s * 0.72, z, t + 1, accentColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.28, y + s * 0.28, x + s * 0.72, y + s * 0.72, depth, t + 1, accentColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.72, y + s * 0.28, x + s * 0.28, y + s * 0.72, depth, t + 1, accentColor);
 			break;
 		default:
 			break;
@@ -234,7 +242,20 @@ public class WindowDisplay {
 	}
 
 	private boolean isControlEnabled(MonitorControl control) {
-		return !control.isAppResize() || !(window instanceof WLCToplevel toplevel) || !toplevel.fullscreen;
+		return !control.isAppResize() || isClientResizeAllowed();
+	}
+
+	private boolean isClientResizeAllowed() {
+		if(!(window instanceof WLCToplevel toplevel)) return false;
+		if(toplevel.fullscreen) return false;
+		if(window instanceof WLCX11Window x11 && x11.nativeGeometry != null && WaylandCraft.instance != null && WaylandCraft.instance.bridge != null) {
+			Size bounds = WaylandCraft.instance.bridge.getOutputBounds();
+			SurfaceGeometry geometry = x11.nativeGeometry;
+			if(geometry.x() == 0 && geometry.y() == 0 && geometry.width() >= bounds.width() && geometry.height() >= bounds.height()) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private FitRect presentationFit() {
@@ -349,6 +370,7 @@ public class WindowDisplay {
 
 		for(MonitorControl control : MonitorControl.values()) {
 			if(!control.isButton()) continue;
+			if(!isControlEnabled(control)) continue;
 			ControlRect rect = controlRect(control);
 			if(rect.contains(displayLocalCoords.x, displayLocalCoords.y)) return control;
 		}

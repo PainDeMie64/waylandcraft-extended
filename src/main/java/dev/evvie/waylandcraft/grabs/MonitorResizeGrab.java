@@ -46,8 +46,8 @@ public class MonitorResizeGrab extends PointerGrab {
 		if(hit == null) return;
 
 		Vec3 local = window.worldToLocalFromOrigin(hit.position(), startOrigin);
-		int newWidth = Math.clamp((int) Math.round(corner.isLeftCorner() ? startWidth - local.x + cornerOffset.x : local.x + cornerOffset.x), 1, 10000);
-		int newHeight = Math.clamp((int) Math.round(corner.isTopCorner() ? startHeight - local.y + cornerOffset.y : local.y + cornerOffset.y), 1, 10000);
+		int newWidth = Math.max(1, (int) Math.round(corner.isLeftCorner() ? startWidth - local.x + cornerOffset.x : local.x + cornerOffset.x));
+		int newHeight = Math.max(1, (int) Math.round(corner.isTopCorner() ? startHeight - local.y + cornerOffset.y : local.y + cornerOffset.y));
 		if(newWidth == width && newHeight == height) return;
 
 		width = newWidth;
