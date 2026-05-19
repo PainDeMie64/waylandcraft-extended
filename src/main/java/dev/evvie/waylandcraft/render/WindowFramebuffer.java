@@ -32,6 +32,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import dev.evvie.waylandcraft.WaylandCraft;
 import dev.evvie.waylandcraft.bridge.WLCSurface;
 import dev.evvie.waylandcraft.bridge.WLCSurface.ViewportSource;
+import dev.evvie.waylandcraft.debug.TextureDebug;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.DynamicUniformStorage;
 import net.minecraft.client.renderer.DynamicUniformStorage.DynamicUniform;
@@ -71,9 +72,11 @@ public class WindowFramebuffer {
 	private int xoff;
 	private int yoff;
 	private int generation = 0;
+	private final int debugId = TextureDebug.nextFramebufferId();
 
 	public WindowFramebuffer(WLCSurface surfaceTree) {
 		this.surfaceTree = surfaceTree;
+		TextureDebug.framebufferCreated(this, surfaceTree);
 	}
 
 	public static void endFrame() {
@@ -91,6 +94,7 @@ public class WindowFramebuffer {
 				continue;
 			}
 
+			TextureDebug.framebufferRetireDestroy(retired.debugId, retired.location, retired.width, retired.height, retired.frames);
 			WaylandCraft.LOGGER.info("WLC framebuffer retire destroy location={} size={}x{} age={}", retired.location, retired.width, retired.height, retired.frames);
 			manager.register(retired.location, manager.getTexture(MissingTextureAtlasSprite.getLocation()));
 			retired.target.destroyBuffers();
@@ -173,6 +177,7 @@ public class WindowFramebuffer {
 				pass.setPipeline(WINDOW_PIPELINE);
 				for(CompiledBufferDraw element : elements) {
 					pass.setUniform("window_info", element.alpha ? alphaUniforms : opaqueUniforms);
+					TextureDebug.beforeBindBuffer(element.buffer, "window-framebuffer fb#" + debugId);
 					pass.bindTexture("sampler", element.textureView, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));
 					pass.setVertexBuffer(0, element.vertexBuffer);
 					pass.setIndexBuffer(element.indexBuffer, element.indexType);
@@ -207,13 +212,13 @@ public class WindowFramebuffer {
 			crop_y2 = (float) ((src.y + src.height) / buf.height);
 		}
 
-		return new BufferDraw(buf.textureView, x, y, w, h, crop_x1, crop_y1, crop_x2, crop_y2, buf.format != BufferTexture.FORMAT_XRGB8888);
+		return new BufferDraw(buf, buf.textureView, x, y, w, h, crop_x1, crop_y1, crop_x2, crop_y2, buf.format != BufferTexture.FORMAT_XRGB8888);
 	}
 
-	private static record CompiledBufferDraw(GpuTextureView textureView, GpuBuffer vertexBuffer, GpuBuffer indexBuffer, int indexCount, VertexFormat.IndexType indexType, boolean alpha) {
+	private static record CompiledBufferDraw(BufferTexture buffer, GpuTextureView textureView, GpuBuffer vertexBuffer, GpuBuffer indexBuffer, int indexCount, VertexFormat.IndexType indexType, boolean alpha) {
 	}
 
-	private static record BufferDraw(GpuTextureView textureView, float x, float y, float w, float h, float u1, float v1, float u2, float v2, boolean alpha) {
+	private static record BufferDraw(BufferTexture buffer, GpuTextureView textureView, float x, float y, float w, float h, float u1, float v1, float u2, float v2, boolean alpha) {
 
 		public CompiledBufferDraw compile() {
 			try(ByteBufferBuilder byteBuilder = new ByteBufferBuilder(DefaultVertexFormat.POSITION_TEX.getVertexSize() * 4)) {
@@ -228,7 +233,7 @@ public class WindowFramebuffer {
 					RenderSystem.AutoStorageIndexBuffer indices = RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS);
 					GpuBuffer vertexBuffer = RenderSystem.getDevice().createBuffer(null, GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST, mesh.vertexBuffer());
 					GpuBuffer indexBuffer = indices.getBuffer(indexCount);
-					return new CompiledBufferDraw(textureView, vertexBuffer, indexBuffer, indexCount, indices.type(), alpha);
+					return new CompiledBufferDraw(buffer, textureView, vertexBuffer, indexBuffer, indexCount, indices.type(), alpha);
 				}
 			}
 		}
@@ -242,14 +247,16 @@ public class WindowFramebuffer {
 		location = Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, name());
 
 		Minecraft.getInstance().getTextureManager().register(location, texture);
+		TextureDebug.framebufferRegistered(this, location, width, height, xoff, yoff, generation, getTextureView());
 		WaylandCraft.LOGGER.info("WLC framebuffer register location={} surface={} generation={} size={}x{} offset={}x{}", location, surfaceTree.getDebugHandle(), generation, width, height, xoff, yoff);
 	}
 
 	public void destroy() {
 		if(target != null) {
 			if(texture != null && location != null) {
+				TextureDebug.framebufferRetired(this, location, width, height, generation);
 				WaylandCraft.LOGGER.info("WLC framebuffer retire location={} surface={} generation={} size={}x{}", location, surfaceTree.getDebugHandle(), generation, width, height);
-				retiredTargets.add(new RetiredTarget(target, location, width, height));
+				retiredTargets.add(new RetiredTarget(target, location, width, height, debugId));
 			}
 			else {
 				target.destroyBuffers();
@@ -289,6 +296,10 @@ public class WindowFramebuffer {
 		return target != null;
 	}
 
+	public int debugId() {
+		return debugId;
+	}
+
 	private static class FramebufferTexture extends AbstractTexture {
 
 		public FramebufferTexture(GpuTextureView textureView) {
@@ -308,13 +319,15 @@ public class WindowFramebuffer {
 		public final Identifier location;
 		public final int width;
 		public final int height;
+		public final int debugId;
 		public int frames = 0;
 
-		public RetiredTarget(RenderTarget target, Identifier location, int width, int height) {
+		public RetiredTarget(RenderTarget target, Identifier location, int width, int height, int debugId) {
 			this.target = target;
 			this.location = location;
 			this.width = width;
 			this.height = height;
+			this.debugId = debugId;
 		}
 
 	}

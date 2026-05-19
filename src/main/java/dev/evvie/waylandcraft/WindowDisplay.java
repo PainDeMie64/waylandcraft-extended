@@ -119,7 +119,7 @@ public class WindowDisplay {
 		PoseStack poseStack = ctx.poseStack();
 		poseStack.pushPose();
 		poseStack.translate(originRel.x, originRel.y, originRel.z);
-		RenderUtils.renderFramebuffer(window.framebuffer, poseStack, ctx.submitNodeCollector(), true, tl, bl, br, tr);
+		RenderUtils.renderFramebuffer(window.framebuffer, poseStack, ctx.submitNodeCollector(), true, tl, bl, br, tr, "world-display window=" + window.getHandle());
 		poseStack.popPose();
 	}
 

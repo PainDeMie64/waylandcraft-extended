@@ -14,6 +14,7 @@ import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.textures.TextureFormat;
 
+import dev.evvie.waylandcraft.debug.TextureDebug;
 import dev.evvie.waylandcraft.mixin.IGlTextureMixin;
 
 public abstract class BufferTexture {
@@ -26,18 +27,30 @@ public abstract class BufferTexture {
 	public final int height;
 	public final int format;
 	public final GpuTextureView textureView;
+	private final int debugId;
 	
 	public BufferTexture(int width, int height, int format) {
 		this.width = width;
 		this.height = height;
 		this.format = format;
+		this.debugId = TextureDebug.nextBufferId();
 		this.id = GlStateManager._genTexture();
-		GlTexture glTexture = IGlTextureMixin.createTexture(GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_TEXTURE_BINDING, "buffertexture-" + this.hashCode(), TextureFormat.RGBA8, width, height, 1, 1, id);
+		GlTexture glTexture = IGlTextureMixin.createTexture(GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_TEXTURE_BINDING, "buffertexture-" + this.debugId, TextureFormat.RGBA8, width, height, 1, 1, id);
 		this.textureView = RenderSystem.getDevice().createTextureView(glTexture);
+		TextureDebug.bufferCreated(this, getClass().getSimpleName(), 0);
 	}
 	
 	public void release() {
+		TextureDebug.bufferRelease(this, "release", true);
+		deleteTextureId();
+	}
+
+	protected final void deleteTextureId() {
 		GlStateManager._deleteTexture(id);
+	}
+
+	public int debugId() {
+		return debugId;
 	}
 	
 	public static class ShmBufferTexture extends BufferTexture {
@@ -49,6 +62,7 @@ public abstract class BufferTexture {
 			super(width, height, format);
 			this.ptr = ptr;
 			this.stride = stride;
+			TextureDebug.bufferRetagged(this, "shm", 0);
 //			if(stride % 4 != 0) WaylandCraft.LOGGER.info("Stride is not a multiple of 4 bytes!!");
 			
 			init();
@@ -86,6 +100,7 @@ public abstract class BufferTexture {
 			this.g = g;
 			this.b = b;
 			this.a = a;
+			TextureDebug.bufferRetagged(this, "single-pixel", 0);
 			
 			init();
 		}
@@ -124,6 +139,7 @@ public abstract class BufferTexture {
 			super(width, height, BufferTexture.FORMAT_ARGB8888);
 			this.handle = handle;
 			this.eglImage = eglImage;
+			TextureDebug.bufferRetagged(this, "dmabuf", handle);
 			init();
 		}
 		
@@ -143,14 +159,17 @@ public abstract class BufferTexture {
 		@Override
 		public void release() {
 			// Don't release texture id as dmabuf textures might get reused
+			TextureDebug.bufferRelease(this, "dmabuf-release-noop", false);
 		}
 		
 		public void free() {
+			TextureDebug.bufferFree(this, "native handle missing");
 			long eglDestroyImage = GLFW.glfwGetProcAddress("eglDestroyImage");
 			long display = GLFWNativeEGL.glfwGetEGLDisplay();
 			
 			JNI.invokePPI(display, this.eglImage, eglDestroyImage);
-			super.release();
+			TextureDebug.bufferRelease(this, "dmabuf-free-delete-gl", true);
+			deleteTextureId();
 		}
 		
 	}

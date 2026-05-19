@@ -108,7 +108,7 @@ public class WaylandHudRenderer {
 			Matrix3x2fStack stack = context.pose();
 			stack.pushMatrix();
 			stack.scale(1.0f / guiScale * 0.5f, 1.0f / guiScale * 0.5f);
-			RenderUtils.renderFramebuffer2D(context, buf, fit);
+			RenderUtils.renderFramebuffer2D(context, buf, fit, "pinned-hud window=" + wlc.pinnedToplevel.getHandle());
 			stack.popMatrix();
 		}
 	}
@@ -129,7 +129,7 @@ public class WaylandHudRenderer {
 			stack.pushMatrix();
 			stack.translate(context.guiWidth() / 2, context.guiHeight() / 2);
 			stack.scale(1.0f / guiScale, 1.0f / guiScale);
-			RenderUtils.renderFramebuffer2D(context, buf, x, y, w, h);
+			RenderUtils.renderFramebuffer2D(context, buf, x, y, w, h, "dnd-icon");
 			stack.popMatrix();
 		}
 	}

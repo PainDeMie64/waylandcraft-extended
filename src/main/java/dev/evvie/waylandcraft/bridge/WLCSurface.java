@@ -3,6 +3,7 @@ package dev.evvie.waylandcraft.bridge;
 import org.jetbrains.annotations.Nullable;
 
 import dev.evvie.waylandcraft.WaylandCraft;
+import dev.evvie.waylandcraft.debug.TextureDebug;
 import dev.evvie.waylandcraft.render.BufferTexture;
 import dev.evvie.waylandcraft.render.BufferTexture.DmabufTexture;
 import dev.evvie.waylandcraft.render.BufferTexture.ShmBufferTexture;
@@ -80,38 +81,41 @@ public class WLCSurface {
 	// Attach a shared memory buffer
 	// The surface width and height are reset to the given buffer dimensions.
 	protected void attachShmBuffer(long ptr, int width, int height, int format, int stride) {
-		if(this.buffer != null) {
-			this.buffer.release();
-		}
+		BufferTexture oldBuffer = this.buffer;
+		int oldRefs = oldBufferRefCount(oldBuffer);
+		if(oldBuffer != null) oldBuffer.release();
 		this.buffer = new ShmBufferTexture(ptr, width, height, format, stride);
 		this.width = width;
 		this.height = height;
+		TextureDebug.surfaceAttach(this, "shm", oldBuffer, this.buffer, oldRefs);
 	}
 	
 	// Attach a single pixel buffer
 	// The surface width and height are reset to 1.
 	protected void attachSinglePixelBuffer(byte r, byte g, byte b, byte a) {
-		if(this.buffer != null) {
-			this.buffer.release();
-		}
+		BufferTexture oldBuffer = this.buffer;
+		int oldRefs = oldBufferRefCount(oldBuffer);
+		if(oldBuffer != null) oldBuffer.release();
 		this.buffer = new SinglePixelBufferTexture(r, g, b, a);
 		this.width = 1;
 		this.height = 1;
+		TextureDebug.surfaceAttach(this, "single-pixel", oldBuffer, this.buffer, oldRefs);
 	}
 	
 	// Attach an already known dmabuf
 	// The surface width and height are reset to the given buffer dimensions.
 	// Returns false if no DmabufTexture by that handle was found.
 	protected boolean attachDmabuf(long handle) {
-		if(this.buffer != null) {
-			this.buffer.release();
-		}
+		BufferTexture oldBuffer = this.buffer;
+		int oldRefs = oldBufferRefCount(oldBuffer);
+		if(oldBuffer != null) oldBuffer.release();
 		
 		this.buffer = WaylandCraft.instance.bridge.getDmabuf(handle);
 		if(this.buffer != null) {
 			this.width = buffer.width;
 			this.height = buffer.height;
 		}
+		TextureDebug.surfaceAttach(this, "dmabuf:" + handle, oldBuffer, this.buffer, oldRefs);
 		return this.buffer != null;
 	}
 	
@@ -127,8 +131,15 @@ public class WLCSurface {
 	}
 	
 	protected void removeBuffer() {
+		BufferTexture oldBuffer = this.buffer;
+		TextureDebug.surfaceRemove(this, oldBuffer, oldBufferRefCount(oldBuffer));
 		this.buffer = null;
 		this.width = this.height = 0;
+	}
+
+	private int oldBufferRefCount(@Nullable BufferTexture oldBuffer) {
+		if(oldBuffer == null || WaylandCraft.instance == null || WaylandCraft.instance.bridge == null) return 0;
+		return WaylandCraft.instance.bridge.countBufferReferences(oldBuffer);
 	}
 	
 	// Set viewport source dimensions

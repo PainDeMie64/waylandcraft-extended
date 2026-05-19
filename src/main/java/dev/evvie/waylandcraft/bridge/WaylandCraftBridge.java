@@ -19,7 +19,9 @@ import org.lwjgl.glfw.GLFWNativeEGL;
 import dev.evvie.waylandcraft.CursorShape;
 import dev.evvie.waylandcraft.WaylandCraft;
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow.SurfaceGeometry;
+import dev.evvie.waylandcraft.debug.TextureDebug;
 import dev.evvie.waylandcraft.desktop.RawDesktopEntry;
+import dev.evvie.waylandcraft.render.BufferTexture;
 import dev.evvie.waylandcraft.render.BufferTexture.DmabufTexture;
 import dev.evvie.waylandcraft.render.WindowFramebuffer;
 import net.minecraft.client.Minecraft;
@@ -34,6 +36,7 @@ public class WaylandCraftBridge {
 	private ArrayList<WLCPopup> popups = new ArrayList<WLCPopup>();
 	private ArrayList<WLCSurface> surfaces = new ArrayList<WLCSurface>();
 	private ArrayList<DmabufTexture> dmabufs = new ArrayList<DmabufTexture>();
+	private ArrayList<DmabufTexture> retiredDmabufs = new ArrayList<DmabufTexture>();
 	private ArrayList<WindowFramebuffer> framebuffers = new ArrayList<WindowFramebuffer>();
 
 	public IconSurface dndIcon = null;
@@ -169,6 +172,21 @@ public class WaylandCraftBridge {
 		dmabufs.add(dmabuf);
 	}
 
+	public int countBufferReferences(BufferTexture buffer) {
+		int refs = 0;
+		for(WLCSurface surface : this.surfaces) {
+			if(surface.getBuffer() == buffer) refs++;
+		}
+		return refs;
+	}
+
+	public String surfaceHandlesForBuffer(BufferTexture buffer) {
+		return this.surfaces.stream()
+				.filter((surface) -> surface.getBuffer() == buffer)
+				.map((surface) -> Long.toString(surface.getDebugHandle()))
+				.collect(Collectors.joining(","));
+	}
+
 	private void deleteNonExistingToplevels(long[] remainingHandles) {
 		ArrayList<WLCToplevel> toplevels_new = new ArrayList<WLCToplevel>();
 		for(WLCToplevel toplevel : this.toplevels) {
@@ -218,13 +236,34 @@ public class WaylandCraftBridge {
 		ArrayList<DmabufTexture> dmabufs_new = new ArrayList<DmabufTexture>();
 		for(DmabufTexture dmabuf : this.dmabufs) {
 			if(ArrayUtils.contains(remainingHandles, dmabuf.handle)) {
+				TextureDebug.dmabufDecision(dmabuf, true, countBufferReferences(dmabuf), surfaceHandlesForBuffer(dmabuf));
 				dmabufs_new.add(dmabuf);
 			}
 			else {
+				int refs = countBufferReferences(dmabuf);
+				TextureDebug.dmabufDecision(dmabuf, false, refs, surfaceHandlesForBuffer(dmabuf));
+				if(refs > 0) {
+					retiredDmabufs.add(dmabuf);
+					continue;
+				}
 				dmabuf.free();
 			}
 		}
 		this.dmabufs = dmabufs_new;
+	}
+
+	private void cleanupRetiredDmabufs() {
+		ArrayList<DmabufTexture> keep = new ArrayList<DmabufTexture>();
+		for(DmabufTexture dmabuf : this.retiredDmabufs) {
+			int refs = countBufferReferences(dmabuf);
+			TextureDebug.dmabufDecision(dmabuf, false, refs, surfaceHandlesForBuffer(dmabuf));
+			if(refs > 0) {
+				keep.add(dmabuf);
+				continue;
+			}
+			dmabuf.free();
+		}
+		this.retiredDmabufs = keep;
 	}
 
 	private void deleteUnvisitedSurfaces() {
@@ -260,6 +299,7 @@ public class WaylandCraftBridge {
 	}
 
 	public void update() {
+		TextureDebug.nextFrame();
 		ProfilerFiller profiler = Profiler.get();
 		profiler.push("wayland");
 
@@ -416,6 +456,7 @@ public class WaylandCraftBridge {
 		profiler.pop();
 
 		deleteNonExistingDmabufs(dmabufs(instance));
+		cleanupRetiredDmabufs();
 
 		updateFocusOrder();
 

@@ -15,7 +15,8 @@
 		"ItemFrameRendererMixin",
 		"ItemFrameRenderStateMixin",
 		"IGlTextureMixin",
-		"IGuiGraphicsExtractor"
+		"IGuiGraphicsExtractor",
+		"TextureManagerMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

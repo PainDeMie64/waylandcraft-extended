@@ -61,6 +61,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 	public static final boolean DEBUG_WINDOWS = envFlagEnabled("WAYLANDCRAFT_DEBUG_WINDOWS");
 	public static final boolean DEBUG_OVERLAY = envFlagEnabled("WAYLANDCRAFT_DEBUG_OVERLAY");
+	public static final boolean DEBUG_TEXTURES = envFlagEnabled("WAYLANDCRAFT_DEBUG_TEXTURES");
 	private static final KeyMapping.Category KEYBIND_CATEGORY = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "keys"));
 	
 	public static WaylandCraft instance;
@@ -118,8 +119,8 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		LOGGER.info("Initializing WaylandCraft");
-		if(DEBUG_WINDOWS || DEBUG_OVERLAY) {
-			LOGGER.info("WLC debug flags windows={} overlay={}", DEBUG_WINDOWS, DEBUG_OVERLAY);
+		if(DEBUG_WINDOWS || DEBUG_OVERLAY || DEBUG_TEXTURES) {
+			LOGGER.info("WLC debug flags windows={} overlay={} textures={}", DEBUG_WINDOWS, DEBUG_OVERLAY, DEBUG_TEXTURES);
 		}
 		
 		instance = this;

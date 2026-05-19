@@ -18,6 +18,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 
 import dev.evvie.waylandcraft.WaylandCraft;
+import dev.evvie.waylandcraft.debug.TextureDebug;
 import dev.evvie.waylandcraft.mixin.IGuiGraphicsExtractor;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -110,16 +111,23 @@ public class RenderUtils {
 			.build();
 	
 	public static void renderFramebuffer(WindowFramebuffer framebuffer, PoseStack poseStack, SubmitNodeCollector collector, boolean cutout, Vec3 tl, Vec3 bl, Vec3 br, Vec3 tr) {
+		renderFramebuffer(framebuffer, poseStack, collector, cutout, tl, bl, br, tr, "3d");
+	}
+
+	public static void renderFramebuffer(WindowFramebuffer framebuffer, PoseStack poseStack, SubmitNodeCollector collector, boolean cutout, Vec3 tl, Vec3 bl, Vec3 br, Vec3 tr, String owner) {
 		if(!framebuffer.isValid()) return;
+		TextureDebug.framebufferPresented(framebuffer, owner);
 		
 		Function<Identifier, RenderType> renderType;
 		
 		// Front quad
 		renderType = cutout ? WINDOW_CUTOUT : WINDOW_TRANSLUCENT;
+		TextureDebug.beforePresentLocation(framebuffer.getTextureLocation(), owner + "/front");
 		collector.submitCustomGeometry(poseStack, renderType.apply(framebuffer.getTextureLocation()), new FramebufferRenderInstance(tl, bl, br, tr, false));
 		
 		// Back quad
 		renderType = cutout ? WINDOW_BACKGROUND_CUTOUT : WINDOW_BACKGROUND_TRANSLUCENT;
+		TextureDebug.beforePresentLocation(framebuffer.getTextureLocation(), owner + "/back");
 		collector.submitCustomGeometry(poseStack, renderType.apply(framebuffer.getTextureLocation()), new FramebufferRenderInstance(tl, bl, br, tr, true));
 	}
 	
@@ -144,12 +152,22 @@ public class RenderUtils {
 	}
 	
 	public static void renderFramebuffer2D(GuiGraphicsExtractor context, WindowFramebuffer framebuffer, int x, int y, int w, int h) {
+		renderFramebuffer2D(context, framebuffer, x, y, w, h, "2d");
+	}
+
+	public static void renderFramebuffer2D(GuiGraphicsExtractor context, WindowFramebuffer framebuffer, int x, int y, int w, int h, String owner) {
 		if(!framebuffer.isValid()) return;
+		TextureDebug.framebufferPresented(framebuffer, owner);
+		TextureDebug.beforePresentLocation(framebuffer.getTextureLocation(), owner);
 		((IGuiGraphicsExtractor) context).invokeInnerBlit(WINDOW_BLIT, framebuffer.getTextureLocation(), x, x + w, y, y + h, 0.0f, 1.0f, 0.0f, 1.0f, -1);
 	}
 
 	public static void renderFramebuffer2D(GuiGraphicsExtractor context, WindowFramebuffer framebuffer, FitRect fit) {
-		renderFramebuffer2D(context, framebuffer, (int) Math.round(fit.x()), (int) Math.round(fit.y()), (int) Math.round(fit.width()), (int) Math.round(fit.height()));
+		renderFramebuffer2D(context, framebuffer, fit, "2d-fit");
+	}
+
+	public static void renderFramebuffer2D(GuiGraphicsExtractor context, WindowFramebuffer framebuffer, FitRect fit, String owner) {
+		renderFramebuffer2D(context, framebuffer, (int) Math.round(fit.x()), (int) Math.round(fit.y()), (int) Math.round(fit.width()), (int) Math.round(fit.height()), owner);
 	}
 
 	public static FitRect aspectFit(double sourceWidth, double sourceHeight, double destX, double destY, double destWidth, double destHeight) {

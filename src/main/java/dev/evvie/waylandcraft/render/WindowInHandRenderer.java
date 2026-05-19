@@ -99,7 +99,7 @@ public class WindowInHandRenderer {
 		Vec3 br = new Vec3(fit.right(), 1 - fit.bottom(), 0);
 		Vec3 tr = new Vec3(fit.right(), 1 - fit.y(), 0);
 		
-		RenderUtils.renderFramebuffer(toplevel.framebuffer, poseStack, collector, false, tl, bl, br, tr);
+		RenderUtils.renderFramebuffer(toplevel.framebuffer, poseStack, collector, false, tl, bl, br, tr, "in-hand window=" + toplevel.getHandle());
 	}
 	
 	public void renderPlayerArm(PoseStack poseStack, SubmitNodeCollector collector, int light, float handHeight, float attack, HumanoidArm humanoidArm) {

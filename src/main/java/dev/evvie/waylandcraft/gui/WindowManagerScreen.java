@@ -292,7 +292,7 @@ public class WindowManagerScreen extends Screen {
 				
 				FitRect fit = element.framebufferFit();
 				if(WaylandCraft.DEBUG_WINDOWS) logRenderFit(element, fit);
-				RenderUtils.renderFramebuffer2D(context, buf, fit);
+				RenderUtils.renderFramebuffer2D(context, buf, fit, "window-manager window=" + element.window.getHandle());
 			}
 		}
 		
