@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import com.mojang.blaze3d.platform.InputConstants;
 
 import dev.evvie.waylandcraft.WindowDisplay.DisplayHitResult;
+import dev.evvie.waylandcraft.WindowDisplay.MonitorControl;
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow;
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow.SurfaceGeometry;
 import dev.evvie.waylandcraft.bridge.WLCPopup;
@@ -22,10 +23,16 @@ import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.ResizeRequest;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.Size;
 import dev.evvie.waylandcraft.desktop.XDGDesktopManager;
 import dev.evvie.waylandcraft.grabs.DNDGrab;
+import dev.evvie.waylandcraft.grabs.MonitorClientResizeGrab;
+import dev.evvie.waylandcraft.grabs.MonitorMoveGrab;
+import dev.evvie.waylandcraft.grabs.MonitorResizeGrab;
+import dev.evvie.waylandcraft.grabs.MonitorRotationGrab;
+import dev.evvie.waylandcraft.grabs.MonitorRotationGrab.Axis;
 import dev.evvie.waylandcraft.grabs.MoveGrab;
 import dev.evvie.waylandcraft.grabs.PointerGrabMap;
 import dev.evvie.waylandcraft.grabs.PointerGrabMap.ImplicitGrab;
 import dev.evvie.waylandcraft.grabs.ResizeGrab;
+import dev.evvie.waylandcraft.grabs.WindowGrab;
 import dev.evvie.waylandcraft.gui.AppLauncherScreen;
 import dev.evvie.waylandcraft.gui.WaylandHudRenderer;
 import dev.evvie.waylandcraft.gui.WindowManagerScreen;
@@ -97,6 +104,12 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	public KeyboardCaptureMode keyboardCaptureMode = KeyboardCaptureMode.NONE;
 	
 	public PointerCapture pointerCapture = null;
+	public boolean snapMonitorPlacement = false;
+	private boolean altChordActive = false;
+	private boolean altChordClean = false;
+	private MonitorRotationGrab rotationGrab = null;
+	private @Nullable WindowDisplay editedDisplay = null;
+	private @Nullable WindowDisplay activeChromeDisplay = null;
 	
 	public boolean playerUsingWindowItem = false;
 	
@@ -127,7 +140,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		keyOpenScreen = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.windowManager", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, KEYBIND_CATEGORY));
 		keyOpenAppLauncher = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.appLauncher", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, KEYBIND_CATEGORY));
-		keyCaptureKeyboard = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.captureKeyboard", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G, KEYBIND_CATEGORY));
+		keyCaptureKeyboard = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.captureKeyboard", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEYBIND_CATEGORY));
 		
 		LevelRenderEvents.COLLECT_SUBMITS.register(this::renderWorld);
 		LevelRenderEvents.END_EXTRACTION.register(this::updateWorld);
@@ -245,6 +258,8 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		disableKeyboardCapture(reason);
 		bridge.deactivateKeyboard();
 		pointerGrabs.releaseAll();
+		rotationGrab = null;
+		editedDisplay = null;
 		bridge.sendMotionOutside();
 	}
 	
@@ -262,10 +277,6 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			return;
 		}
 		
-		if(keyCaptureKeyboard.consumeClick()) {
-			enableKeyboardCapture(false);
-			return;
-		}
 	}
 	
 	private void onClientJoin(ClientPacketListener listener, PacketSender sender, Minecraft minecraft) {
@@ -403,6 +414,51 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	public boolean hasDisplayFor(WLCAbstractWindow window) {
 		return getDisplay(window) != null;
 	}
+
+	public boolean isDisplayHighlighted(WindowDisplay display) {
+		if(display == null) return false;
+		if(editedDisplay == display) return true;
+		if(activeChromeDisplay == display) return true;
+		if(rotationGrab != null && rotationGrab.window() == display) return true;
+		if(hoveredDisplay != null && hoveredDisplay.target == display) return true;
+
+		WLCToplevel focused = bridge == null ? null : bridge.getMostRecentFocus();
+		WLCToplevel root = rootToplevel(display.window);
+		return focused != null && focused == root;
+	}
+
+	public boolean isDisplayChromeActive(WindowDisplay display) {
+		return display != null && (activeChromeDisplay == display || isDisplayHighlighted(display));
+	}
+
+	public void snapDisplayPlacement(WindowDisplay display) {
+		if(!snapMonitorPlacement) return;
+		display.pivot = new Vec3(Math.rint(display.pivot.x), Math.rint(display.pivot.y), Math.rint(display.pivot.z));
+	}
+
+	public void snapDisplayOrientation(WindowDisplay display) {
+		if(!snapMonitorPlacement) return;
+
+		Vec3 normal = display.normal().normalize();
+		Vec3 down = display.down().normalize();
+		double yaw = Math.atan2(normal.x, normal.z);
+		double pitch = Math.asin(Math.clamp(normal.y, -1.0, 1.0));
+		yaw = snapAngleRadians(yaw);
+		pitch = snapAngleRadians(pitch);
+
+		Vec3 snappedNormal = new Vec3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)).normalize();
+		Vec3 snappedRight = down.cross(snappedNormal);
+		if(snappedRight.lengthSqr() < 0.000001) snappedRight = new Vec3(1, 0, 0);
+		snappedRight = snappedRight.normalize();
+		Vec3 snappedDown = snappedNormal.cross(snappedRight).normalize();
+		display.rotate(snappedNormal, snappedDown);
+	}
+
+	public double snapAngleRadians(double angle) {
+		if(!snapMonitorPlacement) return angle;
+		double step = Math.toRadians(5);
+		return Math.rint(angle / step) * step;
+	}
 	
 	public void disablePointerCapture() {
 		disablePointerCapture("pointer-capture-disabled");
@@ -479,6 +535,12 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		if(finalHitResult != null && !finalHitResult.position.closerThan(pos, Minecraft.getInstance().player.blockInteractionRange())) finalHitResult = null;
 		
 		if(!pointerGrabs.isExclusiveGrabActive()) hoveredDisplay = finalHitResult;
+		if(finalHitResult != null) {
+			activeChromeDisplay = finalHitResult.target;
+		}
+		else {
+			activeChromeDisplay = null;
+		}
 		
 		// Check for pointer grab and short-circuit if any
 		if(pointerGrabs.isGrabActive()) {
@@ -486,7 +548,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			this.cursorShape = bridge.getCursorShape();
 			
 			pointerGrabs.moveWorld(pos, look, up);
-			if(finalHitResult != null) {
+			if(finalHitResult != null && finalHitResult.surface != null && finalHitResult.surfaceLocalRelative != null) {
 				pointerGrabs.hover(finalHitResult.target.window, finalHitResult.surface, finalHitResult.surfaceLocalRelative.x, finalHitResult.surfaceLocalRelative.y);
 			}
 			else {
@@ -505,8 +567,15 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		}
 		
 		if(hoveredDisplay != null && hoveredDisplay.dist >= 0) {
+			if(hoveredDisplay.control != MonitorControl.NONE) {
+				this.cursorShape = hoveredDisplay.control.isButton() ? CursorShape.POINTER : null;
+				bridge.sendMotionOutside();
+				return;
+			}
+
 			WLCSurface surface = hoveredDisplay.surface;
 			Vec3 rel = hoveredDisplay.surfaceLocalRelative;
+			if(surface == null || rel == null) return;
 			
 			this.cursorShape = bridge.getCursorShape();
 			bridge.sendMotionRefocus(surface, rel.x, rel.y);
@@ -549,6 +618,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		if(action == 0 && pointerGrabs.isGrabActive(button)) {
 			pointerGrabs.release(button);
+			editedDisplay = null;
 			return true;
 		}
 		
@@ -556,6 +626,11 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		// Handle implicit pointer grab button presses
 		if(action == 1) {
+			if(hoveredDisplay != null && hoveredDisplay.control != MonitorControl.NONE) {
+				handleMonitorControl(hoveredDisplay, button);
+				return true;
+			}
+
 			// Start new implicit grab when conditions are met
 			if(!pointerGrabs.isImplicitActive() && hoveredDisplay != null && hoveredDisplay.dist >= 0) {
 				focusHoveredDisplay("world-button-press", button);
@@ -584,6 +659,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		WLCSurface surface = hoveredDisplay.surface;
 		Vec3 rel = hoveredDisplay.surfaceLocalRelative;
 		WLCAbstractWindow window = hoveredDisplay.target.window;
+		if(surface == null || rel == null) return;
 
 		if(DEBUG_WINDOWS) {
 			LOGGER.info("WLC world pointer route reason={} button={} window={} surface={} rel={}x{}", reason, button, describeWindow(window), surface.getDebugHandle(), rel.x, rel.y);
@@ -591,6 +667,35 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 
 		bridge.sendMotionRefocus(surface, rel.x, rel.y, reason);
 		bridge.focusSurface(rootToplevel(window));
+	}
+
+	private void handleMonitorControl(DisplayHitResult hit, int button) {
+		if(!(hit.target.window instanceof WLCToplevel toplevel)) return;
+		editedDisplay = hit.target;
+
+		if(DEBUG_WINDOWS) {
+			LOGGER.info("WLC monitor control control={} window={}", hit.control, describeWindow(toplevel));
+		}
+
+		switch(hit.control) {
+		case MOVE:
+			pointerGrabs.startExclusive(new MonitorMoveGrab(hit.target, button, hit.surfaceLocalOrigin));
+			break;
+		case RESIZE_MONITOR:
+			pointerGrabs.startExclusive(new MonitorResizeGrab(hit.target, button, hit.surfaceLocalOrigin));
+			break;
+		case RESIZE_APP:
+			if(!toplevel.fullscreen) pointerGrabs.startExclusive(new MonitorClientResizeGrab(hit.target, button, hit.surfaceLocalOrigin));
+			else editedDisplay = null;
+			break;
+		case CLOSE:
+			bridge.closeToplevel(toplevel);
+			editedDisplay = null;
+			break;
+		default:
+			editedDisplay = null;
+			break;
+		}
 	}
 	
 	private boolean canStartInteracting() {
@@ -624,6 +729,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		if(hoveredDisplay != null) {
 			if(hoveredDisplay.dist < 0) return true;
+			if(hoveredDisplay.control != MonitorControl.NONE) return true;
 			
 			// Multiplication by -10 is the inverse transformation from what GLFW does on wayland
 			focusHoveredDisplay("world-scroll", -1);
@@ -643,24 +749,65 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	 * For X11 and Wayland hosts, this is a huge hack but should mostly work for now
 	 */
 	public boolean onKeyPress(long windowHandle, int key, int scancode, int action, int modifiers) {
-		if(key == GLFW.GLFW_KEY_Q && modifiers == GLFW.GLFW_MOD_ALT) {
-			if(action == 0) return true;
-			
+		boolean press = action == GLFW.GLFW_PRESS;
+		boolean release = action == GLFW.GLFW_RELEASE;
+		boolean altKey = isAltKey(key);
+		boolean altDown = altKey || (modifiers & GLFW.GLFW_MOD_ALT) != 0;
+
+		if(press && altKey) {
+			altChordActive = true;
+			altChordClean = true;
+			return true;
+		}
+		if(press && altChordActive && !altKey) {
+			altChordClean = false;
+		}
+
+		if(altDown && key == GLFW.GLFW_KEY_G) {
+			if(press) {
+				if(keyboardCaptureMode == KeyboardCaptureMode.NONE) enableKeyboardCapture(false);
+				else disableKeyboardCapture("alt-g-toggle");
+			}
+			return true;
+		}
+
+		if(altDown && key == GLFW.GLFW_KEY_R) {
+			if(press) toggleRotationMode();
+			return true;
+		}
+
+		if(altDown && key == GLFW.GLFW_KEY_Q) {
+			if(!press) return true;
+
 			if(keyboardCaptureMode != KeyboardCaptureMode.HARD_CAPTURE) {
 				enableKeyboardCapture(true);
 			}
 			else {
-				disableKeyboardCapture();
+				disableKeyboardCapture("alt-q-toggle");
 			}
 			return true;
 		}
-		
-		if(keyboardCaptureMode == KeyboardCaptureMode.NONE) return false;
-		
-		if(keyboardCaptureMode == KeyboardCaptureMode.CAPTURE && key == GLFW.GLFW_KEY_ESCAPE) {
-			disableKeyboardCapture();
+
+		if(release && altKey) {
+			if(altChordActive && altChordClean) {
+				snapMonitorPlacement = !snapMonitorPlacement;
+				if(DEBUG_WINDOWS) LOGGER.info("WLC monitor snapping {}", snapMonitorPlacement ? "enabled" : "disabled");
+			}
+			altChordActive = false;
+			altChordClean = false;
 			return true;
 		}
+
+		if(rotationGrab != null) {
+			if(press) {
+				if(key == GLFW.GLFW_KEY_X) rotationGrab.setAxis(rotationGrab.axis() == Axis.X ? Axis.NONE : Axis.X);
+				else if(key == GLFW.GLFW_KEY_Y) rotationGrab.setAxis(rotationGrab.axis() == Axis.Y ? Axis.NONE : Axis.Y);
+				else if(key == GLFW.GLFW_KEY_Z) rotationGrab.setAxis(rotationGrab.axis() == Axis.Z ? Axis.NONE : Axis.Z);
+			}
+			return true;
+		}
+
+		if(keyboardCaptureMode == KeyboardCaptureMode.NONE) return false;
 		
 		if(action == GLFW.GLFW_PRESS) {
 			bridge.pressKey(scancode);
@@ -670,6 +817,30 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		}
 		
 		return true;
+	}
+
+	private boolean isAltKey(int key) {
+		return key == GLFW.GLFW_KEY_LEFT_ALT || key == GLFW.GLFW_KEY_RIGHT_ALT;
+	}
+
+	private void toggleRotationMode() {
+		if(rotationGrab != null) {
+			pointerGrabs.releaseAll();
+			editedDisplay = null;
+			rotationGrab = null;
+			return;
+		}
+
+		WindowDisplay target = null;
+		if(hoveredDisplay != null) target = hoveredDisplay.target;
+		if(target == null && bridge != null) target = getDisplay(bridge.getMostRecentFocus());
+		if(target == null || !target.isValid()) return;
+
+		disableKeyboardCapture("monitor-rotation");
+		rotationGrab = new MonitorRotationGrab(target);
+		editedDisplay = target;
+		pointerGrabs.startExclusive(rotationGrab);
+		if(DEBUG_WINDOWS) LOGGER.info("WLC monitor rotation start window={}", describeWindow(target.window));
 	}
 
 	private String describeSurfaceOwner(@Nullable WLCSurface surface) {

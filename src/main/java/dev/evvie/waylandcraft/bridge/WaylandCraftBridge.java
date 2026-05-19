@@ -769,6 +769,14 @@ public class WaylandCraftBridge {
 		toplevelFullscreen(instance, toplevel.getHandle());
 	}
 
+	public void closeToplevel(WLCToplevel toplevel) {
+		if(toplevel instanceof WLCX11Window) {
+			x11WindowClose(toplevel.getHandle());
+			return;
+		}
+		toplevelClose(toplevel.getHandle());
+	}
+
 	public Integer checkMoveRequest() {
 		if(lastMoveRequestSerial == null) return null;
 		int serial = lastMoveRequestSerial.intValue();
@@ -878,6 +886,7 @@ public class WaylandCraftBridge {
 	private static native void x11WindowClose(long handle);
 	private static native void x11WindowFocus(long instance, long handle);
 	private static native String x11Display(long instance);
+	private static native void toplevelClose(long handle);
 	// Resize toplevel
 	private static native void toplevelResize(long handle, int width, int height, boolean interactive);
 	// Resize toplevel override, keep maximized and fullscreen state, stop interactive resize

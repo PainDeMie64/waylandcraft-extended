@@ -36,6 +36,7 @@ public class MoveGrab extends PointerGrab {
 		
 		Vec3 diff = hitResult.surfaceLocalOrigin.subtract(initialSurfaceLocal);
 		window.pivot = window.pivot.add(window.localX().scale(diff.x).add(window.localY().scale(diff.y)));
+		wlc.snapDisplayPlacement(window);
 	}
 	
 }

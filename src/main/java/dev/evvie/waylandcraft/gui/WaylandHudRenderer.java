@@ -50,7 +50,7 @@ public class WaylandHudRenderer {
 		int ystep = font.lineHeight + 2;
 		
 		if(WaylandCraft.instance.keyboardCaptureMode == KeyboardCaptureMode.CAPTURE) {
-			String text = "KEYBOARD CAPTURED [PRESS ESCAPE]";
+			String text = "KEYBOARD CAPTURED [PRESS ALT+G]";
 			context.text(font, text, context.guiWidth() - font.width(text) - 10, yoff, Color.red.getRGB(), true);
 			yoff += ystep;
 		}

@@ -1,6 +1,7 @@
 package dev.evvie.waylandcraft.render;
 
 import java.util.function.Function;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import com.mojang.blaze3d.pipeline.BlendFunction;
@@ -100,6 +101,18 @@ public class RenderUtils {
 			return RenderType.create("window_translucent_background", setup);
 		}
 	);
+
+	private static final RenderPipeline MONITOR_SOLID_PIPELINE = RenderPipeline.builder(RenderPipelines.MATRICES_PROJECTION_SNIPPET)
+			.withLocation(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "pipeline/monitor_solid"))
+			.withVertexShader("core/position_color")
+			.withFragmentShader("core/position_color")
+			.withColorTargetState(new ColorTargetState(Optional.empty(), ColorTargetState.WRITE_COLOR))
+			.withDepthStencilState(DepthStencilState.DEFAULT)
+			.withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS)
+			.withCull(false)
+			.build();
+
+	public static final RenderType MONITOR_SOLID = RenderType.create("monitor_solid", RenderSetup.builder(MONITOR_SOLID_PIPELINE).createRenderSetup());
 	
 	public static final RenderPipeline WINDOW_BLIT = RenderPipeline.builder(RenderPipelines.MATRICES_PROJECTION_SNIPPET)
 			.withLocation(Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "pipeline/window_blit"))
@@ -149,6 +162,54 @@ public class RenderUtils {
 			}
 		}
 		
+	}
+
+	public static void renderSolidQuad(PoseStack poseStack, SubmitNodeCollector collector, Vec3 tl, Vec3 bl, Vec3 br, Vec3 tr, int color) {
+		collector.submitCustomGeometry(poseStack, MONITOR_SOLID, new SolidQuadRenderInstance(tl, bl, br, tr, color));
+	}
+
+	public static final record SolidQuadRenderInstance(Vec3 tl, Vec3 bl, Vec3 br, Vec3 tr, int color) implements CustomGeometryRenderer {
+
+		@Override
+		public void render(Pose pose, VertexConsumer buffer) {
+			buffer.addVertex(pose, tl.toVector3f()).setColor(color);
+			buffer.addVertex(pose, bl.toVector3f()).setColor(color);
+			buffer.addVertex(pose, br.toVector3f()).setColor(color);
+			buffer.addVertex(pose, tr.toVector3f()).setColor(color);
+		}
+
+	}
+
+	public static void renderSolidRect(PoseStack poseStack, SubmitNodeCollector collector, Vec3 localX, Vec3 localY, double x, double y, double w, double h, double z, int color) {
+		Vec3 zOff = new Vec3(0, 0, z);
+		Vec3 tl = localX.scale(x).add(localY.scale(y)).add(zOff);
+		Vec3 bl = localX.scale(x).add(localY.scale(y + h)).add(zOff);
+		Vec3 br = localX.scale(x + w).add(localY.scale(y + h)).add(zOff);
+		Vec3 tr = localX.scale(x + w).add(localY.scale(y)).add(zOff);
+		renderSolidQuad(poseStack, collector, tl, bl, br, tr, color);
+	}
+
+	public static void renderSolidOutline(PoseStack poseStack, SubmitNodeCollector collector, Vec3 localX, Vec3 localY, double x, double y, double w, double h, double z, double thickness, int color) {
+		renderSolidRect(poseStack, collector, localX, localY, x, y, w, thickness, z, color);
+		renderSolidRect(poseStack, collector, localX, localY, x, y + h - thickness, w, thickness, z, color);
+		renderSolidRect(poseStack, collector, localX, localY, x, y, thickness, h, z, color);
+		renderSolidRect(poseStack, collector, localX, localY, x + w - thickness, y, thickness, h, z, color);
+	}
+
+	public static void renderSolidLine(PoseStack poseStack, SubmitNodeCollector collector, Vec3 localX, Vec3 localY, double x1, double y1, double x2, double y2, double z, double thickness, int color) {
+		double dx = x2 - x1;
+		double dy = y2 - y1;
+		double len = Math.sqrt(dx * dx + dy * dy);
+		if(len <= 0.000001) return;
+
+		double nx = -dy / len * thickness / 2.0;
+		double ny = dx / len * thickness / 2.0;
+		Vec3 zOff = new Vec3(0, 0, z);
+		Vec3 a = localX.scale(x1 + nx).add(localY.scale(y1 + ny)).add(zOff);
+		Vec3 b = localX.scale(x1 - nx).add(localY.scale(y1 - ny)).add(zOff);
+		Vec3 c = localX.scale(x2 - nx).add(localY.scale(y2 - ny)).add(zOff);
+		Vec3 d = localX.scale(x2 + nx).add(localY.scale(y2 + ny)).add(zOff);
+		renderSolidQuad(poseStack, collector, a, b, c, d, color);
 	}
 	
 	public static void renderFramebuffer2D(GuiGraphicsExtractor context, WindowFramebuffer framebuffer, int x, int y, int w, int h) {

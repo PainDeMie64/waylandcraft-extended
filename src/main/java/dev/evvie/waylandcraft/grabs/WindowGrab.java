@@ -33,6 +33,8 @@ public class WindowGrab extends PointerGrab {
 		this.checkValid();
 		
 		window.anchorToPosView(pos, view, up);
+		wlc.snapDisplayPlacement(window);
+		wlc.snapDisplayOrientation(window);
 	}
 	
 }

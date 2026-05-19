@@ -1680,6 +1680,17 @@ pub extern "system" fn x11WindowGeometry<'l>(
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    toplevelClose")]
+pub extern "system" fn toplevelClose<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong,
+) {
+    let toplevel = jptr_to_toplevel(handle);
+    toplevel.send_close();
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
     toplevelResize")]
 pub extern "system" fn toplevelResize<'l>(
     _env: JNIEnv<'l>,
