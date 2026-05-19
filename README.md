@@ -1,72 +1,106 @@
-![waylandcraft banner](/assets/title_scaled.png)
+![WaylandCraft banner](/assets/title_scaled.png)
 
-Wayland Compositor in Minecraft
+# WaylandCraft Extended
 
-[Demo video](https://youtu.be/cTkEM7b0IQw)
+**WaylandCraft Extended** is a feature-focused fork of [WaylandCraft](https://github.com/EVV1E/waylandcraft), a Wayland compositor inside Minecraft.
 
-## System dependencies
-- OS: Linux
-- Minecraft 26.1.2
-- Fabric mod loader
-- xkbcommon library 1.11.0
-- xkbcommon tools (xkbcli)
+This fork focuses on running more Linux desktop software inside Minecraft, especially X11 apps through Xwayland, Steam, Proton-launched games, and richer in-world monitor controls.
 
-## Frequently Asked Questions
-### How do I use this thing?
-Download the mod from the releases section, install Minecraft Fabric for 26.1.2 and drag the jar file in your mods folder.
-Look at your keybind settings. By default `V` opens the app launcher, `G` enables keyboard capture allowing you to type in
-the windows, `B` opens the window manager screen.
+[Upstream WaylandCraft](https://github.com/EVV1E/waylandcraft) remains the source for the original project, base documentation, screenshots, build instructions, system requirements, and general usage. This README documents what is different in this fork.
 
-### How can I press Escape in the windows?
-Instead of using `G` to capture the keyboard, use `ALT+Q` instead. The only way to turn it off is to press `ALT-Q` again,
-so the `ESC` key is forwarded to the application.
+## What This Fork Adds
 
-### How to do the relative mouse movement thing for 3D games?
-Move your mouse over the window, then activate the hard keyboard capture mode. (`ALT-Q`)
-Exiting the hard keyboard capture mode releases the mouse.
+### Xwayland, Steam, and Proton support
 
-### Will there be multiplayer support?
-Multiplayer support would require video streaming, a bunch of networking code and a rewrite of input handling,
-so it's not really planned right now.
+- Adds Xwayland support so X11 applications can run inside WaylandCraft.
+- Integrates X11 windows into the existing WaylandCraft window model, window manager, in-world displays, items, focus handling, resizing, fullscreen, and close actions.
+- Allows Steam and Proton-launched games to appear as WaylandCraft windows instead of requiring native Wayland support.
+- Keeps native Wayland applications working through the original WaylandCraft compositor path.
 
-### But can I use it on a server though?
-You can, but because it's a client-side mod, other players won't see your windows or be able to interact with them.
-Also you will not receive the windows as items. To spawn a window in the world, go into the wm screen (default bind `B`)
-and then press and hold the "Grab" button.
+### In-world monitor controls
 
-### Does this work in VR?
-Depending on your VR mod, you can probably get the windows to display fine but you probably won't be able to interact with
-the windows using your controller. Soooo, kinda.
+- Adds hover controls directly on placed monitors:
+  - move
+  - close
+  - outer corner handles for resizing the in-world monitor size
+  - inner corner handles for resizing the client/app where the app allows it
+- Adds a focus outline around active or hovered monitors.
+- Keeps monitor controls visible while aiming from the window content to the controls.
+- Disables app/client resize controls for fullscreen apps while still allowing monitor-size resizing.
+- Removes the artificial maximum in-world monitor presentation size.
 
-### Does this work with shaders?
-The windows are rendered into the world by themselves (not like blocks or entities) so a lot of shaders will break the functionality.
+### Placement, snapping, and rotation
 
-## Common issues
-### Crash with `GLFW error: EGL: Failed to clear current context`
-Try setting the environment variable `__GL_THREADED_OPTIMIZATIONS=0` in your launcher.
+- Adds an Alt-only snapping toggle for monitor placement.
+- Snapping uses whole Minecraft block coordinates and 5 degree orientations.
+- Adds monitor rotation mode with `Alt+R`.
+- While rotating, `X`, `Y`, and `Z` constrain rotation to one axis.
+- Keeps existing grab behavior for moving windows from the window manager.
 
-### Weird graphical issues
-Some users reported success by setting the `Improved Transparency` option in the game settings to enabled.
+### Keyboard and pointer input
 
-## Building and Running
-You need a Rust development environment and a Java 25 SDK.
+- Changes normal keyboard capture to `Alt+G`, with `Alt+G` also releasing capture.
+- Keeps `Alt+Q` as hard capture for applications that need relative mouse movement or stronger pointer capture.
+- Frees `Escape` so it can be sent to focused applications instead of always being reserved for leaving capture.
+- Fixes several X11 pointer focus, stacking, and grab-routing paths so clicks are delivered to the intended window.
+
+## Fixes Compared To Upstream
+
+- Fixes X11 fullscreen presentation scaling so fullscreen X11 clients are aspect-fit into WaylandCraft displays instead of being shown in the wrong corner or over the UI.
+- Fixes dmabuf texture lifetime handling for X11 windows, preventing stale or random Minecraft textures from appearing in app windows.
+- Fixes X11 focus/stacking behavior needed for Steam and Proton windows to receive input reliably.
+- Releases pointer capture when opening the window manager and refocuses pointer targets before routing clicks.
+- Cleans up embedded app processes when Minecraft shuts down, reducing leftover Steam/Proton child processes after crashes or forced exits.
+- Adds X11 lifecycle diagnostics for hidden, unmapped, destroyed, or untracked X11 windows.
+
+## Debugging Flags
+
+The fork includes opt-in diagnostics for development and bug reports:
+
+- `WAYLANDCRAFT_DEBUG_X11=1`: native Xwayland/XWM lifecycle logging.
+- `WAYLANDCRAFT_DEBUG_WINDOWS=1`: Java-side window, monitor, routing, and presentation logging.
+- `WAYLANDCRAFT_DEBUG_INPUT=1`: low-level native input and X11 event diagnostics.
+- `WAYLANDCRAFT_DEBUG_TEXTURES=1`: texture, dmabuf, framebuffer, and TextureManager lifecycle logging.
+- `WAYLANDCRAFT_DEBUG_OVERLAY=1`: visual overlay for presentation/fit debugging.
+
+For NVIDIA crashes with `GLFW error: EGL: Failed to clear current context`, the same workaround used while testing this fork is:
+
 ```sh
-./build.sh #all arguments are passed to cargo build
+__GL_THREADED_OPTIMIZATIONS=0
 ```
 
-The final jar file will be in `build/libs`, or run `./gradlew runClient`
-for a development environment
+## Documentation
 
+Use upstream WaylandCraft documentation for:
 
-## Images
-![screenshot](/assets/screenshot.png)
+- installation
+- Minecraft and Fabric setup
+- base keybinds and screens
+- system dependencies
+- build instructions
+- original FAQ and known limitations
 
-## Disclaimer
-This compositor still has lots of issues and bugs. Use it at your own risk or whatever.
+Start here: [EVV1E/waylandcraft](https://github.com/EVV1E/waylandcraft)
+
+Fork-specific defaults to remember:
+
+- `V`: app launcher
+- `B`: window manager
+- `Alt+G`: toggle normal keyboard capture
+- `Alt+Q`: toggle hard keyboard/pointer capture
+- `Alt+R`: toggle monitor rotation mode
+- Alt press/release by itself: toggle monitor snapping
+
+## Status
+
+WaylandCraft Extended is experimental and Linux-only. Xwayland, Steam, Proton, and in-world monitor controls are active fork features and may change quickly.
+
+This repository is intended to be easy to find and share as the Xwayland/Steam/Proton-focused WaylandCraft fork. The recommended public repository name is `waylandcraft-extended`.
 
 ## Contribution Policy
-All contributions have to be made in accordance with the GPLv3 license (see `LICENSE`).
 
-This fork may contain and accept AI-assisted changes. Contributors should review, test, and take responsibility for any submitted code.
+All contributions must comply with the GPLv3 license. See [LICENSE](LICENSE).
 
-The upstream WaylandCraft project has a no-generative-AI contribution policy, so changes from this fork may not be suitable for submission upstream unless they are independently rewritten and reviewed under upstream's rules.
+This fork may contain and accept AI-assisted changes. Contributors should review, test, and take responsibility for submitted code.
+
+The upstream WaylandCraft project has a no-generative-AI contribution policy, so changes from this fork may not be suitable for upstream submission unless they are independently rewritten and reviewed under upstream's rules.
