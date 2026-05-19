@@ -223,18 +223,33 @@ impl WLCState {
     }
 
     pub(crate) fn should_track_x11_window(window: &X11Surface) -> bool {
+        Self::x11_track_reject_reason(window).is_none()
+    }
+
+    fn x11_track_reject_reason(window: &X11Surface) -> Option<&'static str> {
         if window.is_override_redirect() {
-            return false;
+            return Some("override-redirect");
         }
 
-        matches!(
+        if !matches!(
             window.window_type(),
             None | Some(WmWindowType::Dialog) | Some(WmWindowType::Normal)
-        )
+        ) {
+            return Some("unsupported-window-type");
+        }
+
+        None
     }
 
     fn track_x11_window(&mut self, window: X11Surface) {
-        if !Self::should_track_x11_window(&window) {
+        if let Some(reason) = Self::x11_track_reject_reason(&window) {
+            if debug_x11_enabled() {
+                eprintln!(
+                    "WLC X11 reject track reason={} {}",
+                    reason,
+                    self.describe_x11_window(&window)
+                );
+            }
             self.untrack_x11_window(&window);
             return;
         }
@@ -548,9 +563,16 @@ impl XWaylandShellHandler for WLCState {
     fn surface_associated(
         &mut self,
         _xwm: XwmId,
-        _wl_surface: WlSurface,
+        wl_surface: WlSurface,
         surface: X11Surface,
     ) {
+        if debug_x11_enabled() {
+            eprintln!(
+                "WLC X11 surface associated wl_surface={:?} {}",
+                wl_surface.id(),
+                self.describe_x11_window(&surface)
+            );
+        }
         self.track_x11_window(surface);
     }
 }
@@ -560,23 +582,33 @@ impl XwmHandler for WLCState {
         self.xwm.as_mut().expect("Xwayland WM is not ready")
     }
 
-    fn new_window(&mut self, _xwm: XwmId, _window: X11Surface) {}
+    fn new_window(&mut self, _xwm: XwmId, window: X11Surface) {
+        if debug_x11_enabled() {
+            eprintln!(
+                "WLC X11 new window {}",
+                self.describe_x11_window(&window)
+            );
+        }
+    }
 
     fn new_override_redirect_window(
         &mut self,
         _xwm: XwmId,
-        _window: X11Surface,
+        window: X11Surface,
     ) {
+        if debug_x11_enabled() {
+            eprintln!(
+                "WLC X11 new override window {}",
+                self.describe_x11_window(&window)
+            );
+        }
     }
 
     fn map_window_request(&mut self, _xwm: XwmId, window: X11Surface) {
         if debug_x11_enabled() {
             eprintln!(
-                "WLC X11 map request title={:?} class={:?} geometry={:?} type={:?}",
-                window.title(),
-                window.class(),
-                window.geometry(),
-                window.window_type()
+                "WLC X11 map request {}",
+                self.describe_x11_window(&window)
             );
         }
         let _ = window.set_mapped(true);
@@ -592,19 +624,19 @@ impl XwmHandler for WLCState {
     fn mapped_override_redirect_window(
         &mut self,
         _xwm: XwmId,
-        _window: X11Surface,
+        window: X11Surface,
     ) {
+        if debug_x11_enabled() {
+            eprintln!(
+                "WLC X11 mapped override window {}",
+                self.describe_x11_window(&window)
+            );
+        }
     }
 
     fn unmapped_window(&mut self, _xwm: XwmId, window: X11Surface) {
         if debug_x11_enabled() {
-            eprintln!(
-                "WLC X11 unmapped title={:?} class={:?} geometry={:?} override_redirect={}",
-                window.title(),
-                window.class(),
-                window.geometry(),
-                window.is_override_redirect()
-            );
+            eprintln!("WLC X11 unmapped {}", self.describe_x11_window(&window));
         }
         self.untrack_x11_window(&window);
         if !window.is_override_redirect() {
@@ -615,10 +647,8 @@ impl XwmHandler for WLCState {
     fn destroyed_window(&mut self, _xwm: XwmId, window: X11Surface) {
         if debug_x11_enabled() {
             eprintln!(
-                "WLC X11 destroyed title={:?} class={:?} geometry={:?}",
-                window.title(),
-                window.class(),
-                window.geometry()
+                "WLC X11 destroyed {}",
+                self.describe_x11_window(&window)
             );
         }
         self.untrack_x11_window(&window);
