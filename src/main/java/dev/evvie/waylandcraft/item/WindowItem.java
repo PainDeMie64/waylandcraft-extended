@@ -31,48 +31,52 @@ import net.minecraft.world.item.component.UseEffects;
 import net.minecraft.world.level.Level;
 
 public class WindowItem extends Item {
-	
+
 	public static Item WINDOW;
 	public static ResourceKey<Item> WINDOW_RESOURCE_KEY = ResourceKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "window"));
 	public static DataComponentType<Long> WINDOW_HANDLE;
 	public static Component BROKEN_WINDOW_TEXT = Component.literal("Broken Window");
 	public static Component UNKNOWN_WINDOW_TEXT = Component.literal("Unknown Window");
-	
+
 	public static void register() {
 		WINDOW = Registry.register(BuiltInRegistries.ITEM, WINDOW_RESOURCE_KEY, new WindowItem());
 		WINDOW_HANDLE = Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, Identifier.fromNamespaceAndPath(WaylandCraft.MOD_ID, "window_handle"), DataComponentType.<Long>builder().persistent(Codec.LONG).build());
 		ItemTooltipCallback.EVENT.register(WindowItem::addTooltip);
 	}
-	
+
 	public WindowItem() {
 		super(new Properties().setId(WINDOW_RESOURCE_KEY).component(DataComponents.USE_EFFECTS, new UseEffects(true, false, 1.0f)));
 	}
-	
+
 	@Nullable
 	public static WLCToplevel getToplevel(ItemStack item) {
 		if(item == null) return null;
-		
+
 		Long data = item.get(WINDOW_HANDLE);
 		if(data == null) return null;
-		
+
 		long handle = data.longValue();
 		return WaylandCraft.instance.bridge.getToplevel(handle);
 	}
-	
+
 	@Override
 	public Component getName(ItemStack itemStack) {
 		WLCToplevel toplevel = getToplevel(itemStack);
 		if(toplevel == null) return BROKEN_WINDOW_TEXT;
-		
+
 		DesktopEntry entry = WaylandCraft.instance.xdgManager.forAppId(toplevel.appID);
-		if(entry == null) return UNKNOWN_WINDOW_TEXT;
-		
+		if(entry == null) {
+			if(toplevel.title != null) return Component.literal(toplevel.title);
+			if(toplevel.appID != null) return Component.literal(toplevel.appID);
+			return UNKNOWN_WINDOW_TEXT;
+		}
+
 		String name = entry.name;
 		if(name == null) return UNKNOWN_WINDOW_TEXT;
-		
+
 		return Component.literal(name);
 	}
-	
+
 	private static void addTooltip(ItemStack itemStack, TooltipContext ctx, TooltipFlag flag, List<Component> list) {
 		Long handle = itemStack.get(WINDOW_HANDLE);
 		if(handle != null) {
@@ -83,30 +87,30 @@ public class WindowItem extends Item {
 			list.add(component);
 		}
 	}
-	
+
 	@Override
 	public InteractionResult use(Level level, Player player, InteractionHand interactionHand) {
 		ItemStack item = player.getItemInHand(interactionHand);
 		WLCToplevel toplevel = getToplevel(item);
-		
+
 		if(toplevel == null) return InteractionResult.PASS;
-		
+
 		player.startUsingItem(interactionHand);
 		return InteractionResult.CONSUME;
 	}
-	
+
 	@Override
 	public void onUseTick(Level level, LivingEntity livingEntity, ItemStack itemStack, int i) {
 		if(!level.isClientSide()) return;
 		if(livingEntity != Minecraft.getInstance().player) return;
-		
+
 		WaylandCraft.instance.playerUsingWindowItem = true;
 	}
-	
+
 	public static ItemStack createItem(WLCToplevel toplevel) {
 		ItemStack stack = new ItemStack(WindowItem.WINDOW, 1);
 		stack.set(WINDOW_HANDLE, toplevel.getHandle());
 		return stack;
 	}
-	
+
 }

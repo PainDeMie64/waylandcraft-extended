@@ -4,7 +4,7 @@ use crate::egl::{EGLDisplay, EGLHelper};
 use crate::svg::render_svg;
 use crate::utils::get_time;
 use crate::xdg_spec::RawDesktopEntry;
-use crate::{WaylandCraft, wlc_init};
+use crate::{WLCState, WaylandCraft, wlc_init};
 use jni::{
     JNIEnv,
     objects::{JClass, JObject, JString, JValue},
@@ -28,7 +28,7 @@ use smithay::{
             },
         },
     },
-    utils::{Logical, Point, Size},
+    utils::{Logical, Point, SERIAL_COUNTER, Size},
     wayland::{
         compositor::{
             BufferAssignment, SubsurfaceCachedState, SurfaceAttributes,
@@ -44,6 +44,7 @@ use smithay::{
         single_pixel_buffer::get_single_pixel_buffer,
         viewporter::{ViewportCachedState, ensure_viewport_valid},
     },
+    xwayland::X11Surface,
 };
 use std::ops::DerefMut;
 use std::path::PathBuf;
@@ -219,6 +220,25 @@ pub extern "system" fn toplevels<'l>(
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    x11Windows")]
+pub extern "system" fn x11Windows<'l>(
+    env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong,
+) -> jarray {
+    let instance = jptr_to_instance(ptr);
+
+    instance.state.x11_windows.retain(|window| {
+        window.alive() && WLCState::should_track_x11_window(window)
+    });
+
+    let windows = get_all_handles(&mut instance.state.x11_windows);
+    let array = env.new_long_array(windows.len() as jsize).unwrap();
+    env.set_long_array_region(&array, 0, &windows).unwrap();
+    array.into_raw()
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
     popups")]
 pub extern "system" fn popups<'l>(
     env: JNIEnv<'l>,
@@ -249,7 +269,7 @@ pub extern "system" fn minimizeReq<'l>(
 ) -> jarray {
     let instance = jptr_to_instance(ptr);
 
-    let handles: Vec<jlong> = instance
+    let mut handles: Vec<jlong> = instance
         .state
         .requests
         .minimize
@@ -258,7 +278,22 @@ pub extern "system" fn minimizeReq<'l>(
         .map(|t| insert_get_handle(&mut instance.bridge.toplevels, t))
         .collect();
 
+    handles.extend(
+        instance
+            .state
+            .requests
+            .x11_minimize
+            .iter()
+            .filter(|window| {
+                window.alive() && WLCState::should_track_x11_window(window)
+            })
+            .map(|window| {
+                insert_get_handle(&mut instance.state.x11_windows, window)
+            }),
+    );
+
     instance.state.requests.minimize.clear();
+    instance.state.requests.x11_minimize.clear();
 
     let array = env.new_long_array(handles.len() as jsize).unwrap();
     env.set_long_array_region(&array, 0, &handles).unwrap();
@@ -695,6 +730,11 @@ fn jptr_to_toplevel(ptr: jlong) -> &'static mut ToplevelSurface {
     unsafe { &mut *ptr }
 }
 
+fn jptr_to_x11window(ptr: jlong) -> &'static mut X11Surface {
+    let ptr: *mut X11Surface = (ptr as usize) as *mut X11Surface;
+    unsafe { &mut *ptr }
+}
+
 fn jptr_to_popup(ptr: jlong) -> &'static mut PopupSurface {
     let ptr: *mut PopupSurface = (ptr as usize) as *mut PopupSurface;
     unsafe { &mut *ptr }
@@ -713,6 +753,23 @@ pub extern "system" fn toplevelSurface<'l>(
     let surface: &WlSurface = toplevel.wl_surface();
 
     insert_get_handle(&mut instance.bridge.surfaces, surface)
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    x11WindowSurface")]
+pub extern "system" fn x11WindowSurface<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong,
+    handle: jlong,
+) -> jlong {
+    let instance = jptr_to_instance(ptr);
+    let window = jptr_to_x11window(handle);
+    let Some(surface) = window.wl_surface() else {
+        return 0;
+    };
+
+    insert_get_handle(&mut instance.bridge.surfaces, &surface)
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
@@ -1111,6 +1168,18 @@ pub extern "system" fn keyboardFocus<'l>(
         None => instance.state.seat.keyboard_unfocus(),
     };
 
+    if let Some(keyboard) = instance.state.xwayland_keyboard.clone() {
+        keyboard.set_focus(
+            &mut instance.state,
+            None,
+            SERIAL_COUNTER.next_serial(),
+        );
+    }
+
+    for window in instance.state.x11_windows.iter() {
+        let _ = window.set_activated(false);
+    }
+
     instance
         .state
         .xdg_state
@@ -1222,6 +1291,17 @@ pub extern "system" fn fullscreened<'l>(
         let handle =
             insert_get_handle(&mut instance.bridge.toplevels, toplevel);
         handles.push(handle);
+    }
+
+    for window in instance.state.x11_windows.iter_mut() {
+        if !window.alive()
+            || !WLCState::should_track_x11_window(window)
+            || !window.is_fullscreen()
+        {
+            continue;
+        }
+
+        handles.push(((&mut **window) as *mut X11Surface) as usize as jlong);
     }
 
     let array = env.new_long_array(handles.len() as jsize).unwrap();
@@ -1446,6 +1526,60 @@ pub extern "system" fn toplevelAppID<'l>(
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    x11WindowTitle")]
+pub extern "system" fn x11WindowTitle<'l>(
+    env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong,
+) -> jstring {
+    let window = jptr_to_x11window(handle);
+    let title = window.title();
+
+    if title.is_empty() {
+        std::ptr::null_mut()
+    } else {
+        env.new_string(&title).unwrap().into_raw()
+    }
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    x11WindowAppID")]
+pub extern "system" fn x11WindowAppID<'l>(
+    env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong,
+) -> jstring {
+    let window = jptr_to_x11window(handle);
+    let class = window.class();
+
+    if class.is_empty() {
+        std::ptr::null_mut()
+    } else {
+        env.new_string(&class).unwrap().into_raw()
+    }
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    x11WindowGeometry")]
+pub extern "system" fn x11WindowGeometry<'l>(
+    env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong,
+) -> jarray {
+    let window = jptr_to_x11window(handle);
+    let geometry = window.geometry();
+    let data = [
+        geometry.loc.x,
+        geometry.loc.y,
+        geometry.size.w,
+        geometry.size.h,
+    ];
+    let array = env.new_int_array(4).unwrap();
+    env.set_int_array_region(&array, 0, &data).unwrap();
+    array.into_raw()
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
     toplevelResize")]
 pub extern "system" fn toplevelResize<'l>(
     _env: JNIEnv<'l>,
@@ -1527,6 +1661,109 @@ pub extern "system" fn toplevelFullscreen<'l>(
         state.states.set(xdg_toplevel::State::Fullscreen);
     });
     toplevel.send_configure();
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    x11WindowResize")]
+pub extern "system" fn x11WindowResize<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong,
+    width: jint,
+    height: jint,
+) {
+    let window = jptr_to_x11window(handle);
+    let mut geometry = window.geometry();
+    geometry.size.w = width.max(1);
+    geometry.size.h = height.max(1);
+    let _ = window.set_maximized(false);
+    let _ = window.set_fullscreen(false);
+    let _ = window.configure(Some(geometry));
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    x11WindowMaximize")]
+pub extern "system" fn x11WindowMaximize<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong,
+    handle: jlong,
+) {
+    let instance = jptr_to_instance(ptr);
+    let window = jptr_to_x11window(handle);
+    let _ = window.set_maximized(true);
+    let _ = window.configure(Some(instance.state.output_x11_geometry()));
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    x11WindowFullscreen")]
+pub extern "system" fn x11WindowFullscreen<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong,
+    handle: jlong,
+) {
+    let instance = jptr_to_instance(ptr);
+    let window = jptr_to_x11window(handle);
+    let _ = window.set_fullscreen(true);
+    let _ = window.configure(Some(instance.state.output_x11_geometry()));
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    x11WindowClose")]
+pub extern "system" fn x11WindowClose<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    handle: jlong,
+) {
+    let window = jptr_to_x11window(handle);
+    let _ = window.close();
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    x11WindowFocus")]
+pub extern "system" fn x11WindowFocus<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong,
+    handle: jlong,
+) {
+    let instance = jptr_to_instance(ptr);
+    let window = jptr_to_x11window(handle).clone();
+    let surface = window.wl_surface();
+
+    if let Some(surface) = surface {
+        let client = surface.client();
+        instance.state.data.update_clipboard_client(client);
+        instance.state.seat.keyboard_focus(surface);
+    }
+
+    for x11_window in instance.state.x11_windows.iter() {
+        let _ = x11_window.set_activated(**x11_window == window);
+    }
+
+    if let Some(keyboard) = instance.state.xwayland_keyboard.clone() {
+        keyboard.set_focus(
+            &mut instance.state,
+            Some(window),
+            SERIAL_COUNTER.next_serial(),
+        );
+    }
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    x11Display")]
+pub extern "system" fn x11Display<'l>(
+    env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong,
+) -> jstring {
+    let instance = jptr_to_instance(ptr);
+    if let Some(display) = instance.state.xdisplay {
+        env.new_string(format!(":{display}")).unwrap().into_raw()
+    } else {
+        std::ptr::null_mut()
+    }
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
@@ -1744,12 +1981,15 @@ pub extern "system" fn execApp<'l>(
     let app_id: String =
         unsafe { env.get_string_unchecked(&app_id).unwrap() }.into();
 
-    let env_vars = vec![
+    let mut env_vars = vec![
         ("WAYLAND_DISPLAY".into(), instance.state.socket.clone()),
-        ("QT_QPA_PLATFORM".into(), "wayland".into()),
+        ("QT_QPA_PLATFORM".into(), "wayland;xcb".into()),
         ("ELECTRON_OZONE_PLATFORM_HINT".into(), "auto".into()),
-        ("GDK_BACKEND".into(), "wayland".into())
+        ("GDK_BACKEND".into(), "wayland,x11".into()),
     ];
+    if let Some(display) = instance.state.xdisplay {
+        env_vars.push(("DISPLAY".into(), format!(":{display}").into()));
+    }
     instance.xdg.exec_app(app_id, env_vars) as jboolean
 }
 

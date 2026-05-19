@@ -8,8 +8,17 @@ use smithay::{
     backend::{allocator::dmabuf::Dmabuf, drm::DrmNode},
     delegate_compositor, delegate_dmabuf, delegate_shm,
     delegate_single_pixel_buffer, delegate_viewporter, delegate_xdg_shell,
+    delegate_xwayland_shell,
+    input::{
+        Seat, SeatHandler, SeatState,
+        dnd::DndGrabHandler,
+        keyboard::{KeyboardHandle, XkbConfig},
+        pointer::CursorImageStatus,
+    },
     reexports::{
-        calloop::{self, EventLoop, generic::Generic as GenericEvent},
+        calloop::{
+            self, EventLoop, LoopHandle, generic::Generic as GenericEvent,
+        },
         wayland_protocols::xdg::shell::server::xdg_toplevel::ResizeEdge,
         wayland_server::{
             self, Display, DisplayHandle,
@@ -20,7 +29,7 @@ use smithay::{
             },
         },
     },
-    utils::Serial,
+    utils::{Logical, Rectangle, Serial},
     wayland::{
         buffer::BufferHandler,
         compositor::{
@@ -38,9 +47,18 @@ use smithay::{
         single_pixel_buffer::SinglePixelBufferState,
         socket::ListeningSocketSource,
         viewporter::ViewporterState,
+        xwayland_shell::{XWaylandShellHandler, XWaylandShellState},
+    },
+    xwayland::{
+        X11Surface, X11Wm, XWayland, XWaylandClientData, XWaylandEvent,
+        xwm::{
+            Reorder, ResizeEdge as X11ResizeEdge, WmWindowType, XwmHandler,
+            XwmId,
+        },
     },
 };
 use std::ffi::OsString;
+use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -76,6 +94,13 @@ pub struct WLCState {
     pub seat: WLCSeatState,
     pub data: WLCDataState,
     pub output: WLCOutput,
+    pub xwayland_shell_state: XWaylandShellState,
+    pub xwayland_seat_state: SeatState<WLCState>,
+    pub xwayland_seat: Seat<WLCState>,
+    pub xwayland_keyboard: Option<KeyboardHandle<WLCState>>,
+    pub xwm: Option<X11Wm>,
+    pub xdisplay: Option<u32>,
+    pub x11_windows: Vec<Box<X11Surface>>,
 }
 
 #[derive(Default)]
@@ -85,6 +110,7 @@ pub struct WindowRequests {
     pub unmaximize: Vec<ToplevelSurface>,
     pub fullscreen: Vec<ToplevelSurface>,
     pub unfullscreen: Vec<ToplevelSurface>,
+    pub x11_minimize: Vec<X11Surface>,
     pub move_interactive: Vec<Serial>,
     pub resize_interactive: Vec<(Serial, ResizeEdge)>,
 }
@@ -110,6 +136,15 @@ impl WLCState {
         let output = WLCOutput::new(&disp);
         output.create_global();
 
+        let xwayland_shell_state = XWaylandShellState::new::<WLCState>(&disp);
+
+        let mut xwayland_seat_state = SeatState::new();
+        let mut xwayland_seat =
+            xwayland_seat_state.new_seat("waylandcraft-xwayland");
+        let xwayland_keyboard = xwayland_seat
+            .add_keyboard(XkbConfig::default(), 200, 25)
+            .ok();
+
         Self {
             display_handle: disp.clone(),
             socket: OsString::new(),
@@ -124,6 +159,105 @@ impl WLCState {
             seat,
             data,
             output,
+            xwayland_shell_state,
+            xwayland_seat_state,
+            xwayland_seat,
+            xwayland_keyboard,
+            xwm: None,
+            xdisplay: None,
+            x11_windows: vec![],
+        }
+    }
+
+    pub(crate) fn should_track_x11_window(window: &X11Surface) -> bool {
+        if window.is_override_redirect() {
+            return false;
+        }
+
+        matches!(
+            window.window_type(),
+            None | Some(WmWindowType::Dialog) | Some(WmWindowType::Normal)
+        )
+    }
+
+    fn track_x11_window(&mut self, window: X11Surface) {
+        if !Self::should_track_x11_window(&window) {
+            self.untrack_x11_window(&window);
+            return;
+        }
+
+        if !self.x11_windows.iter().any(|w| **w == window) {
+            self.x11_windows.push(Box::new(window));
+        }
+    }
+
+    fn untrack_x11_window(&mut self, window: &X11Surface) {
+        self.x11_windows.retain(|w| **w != *window);
+    }
+
+    fn output_x11_geometry(&self) -> Rectangle<i32, Logical> {
+        Rectangle::from_size(self.output.bounds())
+    }
+
+    fn clamped_x11_geometry(
+        &self,
+        mut geometry: Rectangle<i32, Logical>,
+    ) -> Rectangle<i32, Logical> {
+        let bounds = self.output.bounds();
+        geometry.size.w = geometry.size.w.max(1).min(bounds.w.max(1));
+        geometry.size.h = geometry.size.h.max(1).min(bounds.h.max(1));
+        geometry.loc.x = geometry.loc.x.max(0).min(bounds.w - geometry.size.w);
+        geometry.loc.y = geometry.loc.y.max(0).min(bounds.h - geometry.size.h);
+        geometry
+    }
+
+    fn start_xwayland(&mut self, handle: LoopHandle<'static, WLCState>) {
+        let display_handle = self.display_handle.clone();
+        let (xwayland, client) = match XWayland::spawn(
+            &display_handle,
+            None,
+            std::iter::empty::<(String, String)>(),
+            true,
+            Stdio::null(),
+            Stdio::null(),
+            |_| (),
+        ) {
+            Ok(xwayland) => xwayland,
+            Err(err) => {
+                eprintln!("Failed to start Xwayland: {err}");
+                return;
+            }
+        };
+
+        let ret = handle.clone().insert_source(xwayland, move |event, _, data| {
+            match event {
+                XWaylandEvent::Ready {
+                    x11_socket,
+                    display_number,
+                } => {
+                    let wm = match X11Wm::start_wm(
+                        handle.clone(),
+                        &display_handle,
+                        x11_socket,
+                        client.clone(),
+                    ) {
+                        Ok(wm) => wm,
+                        Err(err) => {
+                            eprintln!("Failed to attach Xwayland window manager: {err}");
+                            return;
+                        }
+                    };
+                    data.xwm = Some(wm);
+                    data.xdisplay = Some(display_number);
+                }
+                XWaylandEvent::Error => {
+                    eprintln!("Xwayland crashed on startup");
+                }
+            }
+        });
+
+        if let Err(err) = ret {
+            eprintln!("Failed to insert Xwayland event source: {err}");
         }
     }
 }
@@ -154,7 +288,13 @@ impl CompositorHandler for WLCState {
         &self,
         client: &'a wayland_server::Client,
     ) -> &'a CompositorClientState {
-        &client.get_data::<WLCClient>().unwrap().compositor_state
+        if let Some(client_data) = client.get_data::<WLCClient>() {
+            return &client_data.compositor_state;
+        }
+        if let Some(client_data) = client.get_data::<XWaylandClientData>() {
+            return &client_data.compositor_state;
+        }
+        panic!("Unknown WaylandCraft client data")
     }
 
     fn commit(&mut self, _surface: &WlSurface) {}
@@ -266,6 +406,152 @@ impl XdgShellHandler for WLCState {
     }
 }
 
+impl XWaylandShellHandler for WLCState {
+    fn xwayland_shell_state(&mut self) -> &mut XWaylandShellState {
+        &mut self.xwayland_shell_state
+    }
+
+    fn surface_associated(
+        &mut self,
+        _xwm: XwmId,
+        _wl_surface: WlSurface,
+        surface: X11Surface,
+    ) {
+        self.track_x11_window(surface);
+    }
+}
+
+impl XwmHandler for WLCState {
+    fn xwm_state(&mut self, _xwm: XwmId) -> &mut X11Wm {
+        self.xwm.as_mut().expect("Xwayland WM is not ready")
+    }
+
+    fn new_window(&mut self, _xwm: XwmId, _window: X11Surface) {}
+
+    fn new_override_redirect_window(
+        &mut self,
+        _xwm: XwmId,
+        _window: X11Surface,
+    ) {
+    }
+
+    fn map_window_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        let _ = window.set_mapped(true);
+        self.track_x11_window(window.clone());
+        let _ = window
+            .configure(Some(self.clamped_x11_geometry(window.geometry())));
+    }
+
+    fn mapped_override_redirect_window(
+        &mut self,
+        _xwm: XwmId,
+        _window: X11Surface,
+    ) {
+    }
+
+    fn unmapped_window(&mut self, _xwm: XwmId, window: X11Surface) {
+        self.untrack_x11_window(&window);
+        if !window.is_override_redirect() {
+            let _ = window.set_mapped(false);
+        }
+    }
+
+    fn destroyed_window(&mut self, _xwm: XwmId, window: X11Surface) {
+        self.untrack_x11_window(&window);
+    }
+
+    fn configure_request(
+        &mut self,
+        _xwm: XwmId,
+        window: X11Surface,
+        x: Option<i32>,
+        y: Option<i32>,
+        w: Option<u32>,
+        h: Option<u32>,
+        _reorder: Option<Reorder>,
+    ) {
+        let mut geometry = window.geometry();
+        if let Some(x) = x {
+            geometry.loc.x = x;
+        }
+        if let Some(y) = y {
+            geometry.loc.y = y;
+        }
+        if let Some(w) = w {
+            geometry.size.w = w.max(1) as i32;
+        }
+        if let Some(h) = h {
+            geometry.size.h = h.max(1) as i32;
+        }
+        let _ = window.configure(Some(self.clamped_x11_geometry(geometry)));
+    }
+
+    fn configure_notify(
+        &mut self,
+        _xwm: XwmId,
+        window: X11Surface,
+        _geometry: Rectangle<i32, Logical>,
+        _above: Option<u32>,
+    ) {
+        if window.is_mapped() && Self::should_track_x11_window(&window) {
+            self.track_x11_window(window);
+        }
+    }
+
+    fn maximize_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        let _ = window.set_maximized(true);
+        let _ = window.configure(Some(self.output_x11_geometry()));
+    }
+
+    fn unmaximize_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        let _ = window.set_maximized(false);
+    }
+
+    fn fullscreen_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        let _ = window.set_fullscreen(true);
+        let _ = window.configure(Some(self.output_x11_geometry()));
+    }
+
+    fn unfullscreen_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        let _ = window.set_fullscreen(false);
+    }
+
+    fn minimize_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        let _ = window.set_hidden(true);
+        self.requests.x11_minimize.push(window);
+    }
+
+    fn unminimize_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        let _ = window.set_hidden(false);
+    }
+
+    fn resize_request(
+        &mut self,
+        _xwm: XwmId,
+        _window: X11Surface,
+        _button: u32,
+        _resize_edge: X11ResizeEdge,
+    ) {
+    }
+
+    fn move_request(&mut self, _xwm: XwmId, _window: X11Surface, _button: u32) {
+    }
+}
+
+impl SeatHandler for WLCState {
+    type KeyboardFocus = X11Surface;
+    type PointerFocus = X11Surface;
+    type TouchFocus = X11Surface;
+
+    fn seat_state(&mut self) -> &mut SeatState<Self> {
+        &mut self.xwayland_seat_state
+    }
+
+    fn cursor_image(&mut self, _seat: &Seat<Self>, _image: CursorImageStatus) {}
+}
+
+impl DndGrabHandler for WLCState {}
+
 pub(crate) struct WLCClient {
     compositor_state: CompositorClientState,
 }
@@ -295,6 +581,7 @@ pub(crate) fn wlc_init(
     state.socket = socket.socket_name().to_os_string();
 
     let ev_handle = event_loop.handle();
+    state.start_xwayland(ev_handle.clone());
 
     ev_handle
         .insert_source(socket, |stream, _, state| {
@@ -347,3 +634,4 @@ delegate_xdg_shell!(WLCState);
 delegate_viewporter!(WLCState);
 delegate_single_pixel_buffer!(WLCState);
 delegate_dmabuf!(WLCState);
+delegate_xwayland_shell!(WLCState);

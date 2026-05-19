@@ -8,7 +8,7 @@ name = "waylandcraft"
 crate-type = [ "cdylib" ]
 
 [dependencies]
-smithay = { git = "https://github.com/Smithay/smithay.git", rev = "89e58f7", default-features = false, features = [ "wayland_frontend", "backend_drm" ] }
+smithay = { git = "https://github.com/Smithay/smithay.git", rev = "89e58f7", default-features = false, features = [ "wayland_frontend", "backend_drm", "xwayland" ] }
 jni = "0.21.1"
 libc = { version = "0.2.176", default-features = false }
 xkbcommon = "0.8.0"
