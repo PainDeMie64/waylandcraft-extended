@@ -19,7 +19,6 @@ import dev.evvie.waylandcraft.bridge.WLCToplevel;
 import dev.evvie.waylandcraft.bridge.WLCX11Window;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.Size;
-import dev.evvie.waylandcraft.desktop.DesktopEntry;
 import dev.evvie.waylandcraft.grabs.WindowGrab;
 import dev.evvie.waylandcraft.mixin.IMouseHandlerMixin;
 import dev.evvie.waylandcraft.render.CursorRenderer;
@@ -50,6 +49,7 @@ public class WindowManagerScreen extends Screen {
 	private Button hideButton;
 	private Button pinButton;
 	private Button itemButton;
+	private Button helpButton;
 	
 	private boolean resizeMode = false;
 	private WLCToplevel resizeToplevel = null;
@@ -103,13 +103,7 @@ public class WindowManagerScreen extends Screen {
 			
 			@Override
 			public @Nullable Identifier iconForElement(WLCToplevel element) {
-				DesktopEntry entry = wlc.xdgManager.forAppId(element.appID);
-				if(entry == null) return null;
-				
-				Identifier icon = entry.getIcon();
-				if(icon == null) return null;
-				
-				return icon;
+				return element.getIcon();
 			}
 		};
 		addRenderableWidget(selector);
@@ -152,12 +146,22 @@ public class WindowManagerScreen extends Screen {
 		itemButton.setTooltip(Tooltip.create(Component.literal("Give Window Item")));
 		itemButton.setTooltipDelay(Duration.ofMillis(700));
 		buttons.add(itemButton);
+
+		helpButton = SpriteIconButton.builder(Component.literal("Shortcuts"), this::onHelpPressed, true)
+				.sprite(Identifier.fromNamespaceAndPath("waylandcraft", "crosshair/help"), 16, 16)
+				.size(22, 22)
+				.build();
+		helpButton.setPosition(3, topMargin + 90);
+		helpButton.setTooltip(Tooltip.create(Component.literal("Shortcuts")));
+		helpButton.setTooltipDelay(Duration.ofMillis(700));
+		buttons.add(helpButton);
 		
 		addRenderableWidget(grabButton);
 		addRenderableWidget(resizeButton);
 		addRenderableWidget(hideButton);
 		addRenderableWidget(pinButton);
 		addRenderableWidget(itemButton);
+		addRenderableWidget(helpButton);
 		
 		wlc.bridge.activateKeyboard();
 	}
@@ -200,6 +204,10 @@ public class WindowManagerScreen extends Screen {
 	private void onItemPressed(Button button) {
 		if(focused == null) return;
 		wlc.itemManager.giveItem(focused);
+	}
+
+	private void onHelpPressed(Button button) {
+		Minecraft.getInstance().setScreen(new ShortcutHelpScreen(this));
 	}
 	
 	private void exitResizeMode() {
@@ -491,6 +499,10 @@ public class WindowManagerScreen extends Screen {
 	public boolean keyPressed(KeyEvent event) {
 		if(event.key() == GLFW.GLFW_KEY_ESCAPE) {
 			this.onClose();
+			return true;
+		}
+		if(event.key() == GLFW.GLFW_KEY_F1) {
+			Minecraft.getInstance().setScreen(new ShortcutHelpScreen(this));
 			return true;
 		}
 		

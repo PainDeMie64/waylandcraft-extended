@@ -75,11 +75,22 @@ public class XDGDesktopManager {
 			return null;
 		}
 		
+		DesktopEntry exactEntry = exactEntryForAppId(appId);
+		if(exactEntry != null) return exactEntry;
+		DesktopEntry steamEntry = steamEntryForAppId(appId);
+		if(steamEntry != null) return steamEntry;
+		return null;
+	}
+
+	public @Nullable DesktopEntry exactEntryForAppId(String appId) {
+		if(appId == null) return null;
+		if(!completeFetch()) {
+			return null;
+		}
+
 		for(DesktopEntry entry : systemEntries) {
 			if(entry.appId.equals(appId)) return entry;
 		}
-		DesktopEntry steamEntry = steamEntryForAppId(appId);
-		if(steamEntry != null) return steamEntry;
 		return null;
 	}
 

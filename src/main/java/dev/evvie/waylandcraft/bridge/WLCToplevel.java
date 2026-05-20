@@ -2,6 +2,10 @@ package dev.evvie.waylandcraft.bridge;
 
 import org.jetbrains.annotations.Nullable;
 
+import dev.evvie.waylandcraft.WaylandCraft;
+import dev.evvie.waylandcraft.desktop.DesktopEntry;
+import net.minecraft.resources.Identifier;
+
 public class WLCToplevel extends WLCAbstractWindow {
 	
 	@Nullable
@@ -18,6 +22,12 @@ public class WLCToplevel extends WLCAbstractWindow {
 	
 	public WLCToplevel(long handle) {
 		super(handle);
+	}
+
+	public @Nullable Identifier getIcon() {
+		DesktopEntry entry = WaylandCraft.instance.xdgManager.exactEntryForAppId(appID);
+		if(entry == null) return null;
+		return entry.getIcon();
 	}
 	
 	public static class ToplevelRequests {

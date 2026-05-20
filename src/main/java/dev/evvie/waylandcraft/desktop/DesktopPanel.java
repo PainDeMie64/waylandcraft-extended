@@ -212,8 +212,7 @@ public class DesktopPanel {
 			WLCToplevel toplevel = wlc.bridge.getToplevel(rect.id);
 			Identifier icon = null;
 			if(toplevel != null) {
-				DesktopEntry entry = wlc.xdgManager.forAppId(toplevel.appID);
-				if(entry != null) icon = entry.getIcon();
+				icon = toplevel.getIcon();
 			}
 			if(icon != null) {
 				Vec3 depth = new Vec3(0, 0, z);

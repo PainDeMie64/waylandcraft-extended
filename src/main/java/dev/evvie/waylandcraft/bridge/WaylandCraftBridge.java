@@ -414,6 +414,11 @@ public class WaylandCraftBridge {
 						window.appID);
 				window.x11WindowID = x11WindowID;
 				window.x11MappedWindowID = x11MappedWindowID;
+				window.resetWindowIcon();
+			}
+			long nowMs = System.currentTimeMillis();
+			if(window.shouldFetchWindowIcon(nowMs)) {
+				window.updateWindowIcon(x11WindowIcon(instance, window.getHandle()), nowMs);
 			}
 
 			if(ArrayUtils.contains(minimizeRequests, handle)) window.requests.minimize = true;
@@ -934,6 +939,7 @@ public class WaylandCraftBridge {
 	private static native String x11WindowAppID(long handle);
 	private static native long x11WindowID(long handle);
 	private static native long x11WindowMappedID(long handle);
+	private static native int[] x11WindowIcon(long instance, long handle);
 	private static native int[] x11WindowGeometry(long handle);
 	private static native void x11WindowResize(long handle, int width, int height);
 	private static native void x11WindowMaximize(long instance, long handle);

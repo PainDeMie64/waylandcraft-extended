@@ -2,10 +2,11 @@
 	"schemaVersion": 1,
 	"id": "waylandcraft",
 	"version": "1.1",
-	"name": "WaylandCraft",
-	"description": "Wayland Compositor in Minecraft",
+	"name": "WaylandCraft Extended",
+	"description": "Wayland desktop environment in Minecraft",
 	"authors": [
-		"EVV1E"
+		"EVV1E",
+		"PainDeMie64"
 	],
 	"icon": "assets/waylandcraft/icon.png",
 	"environment": "*",

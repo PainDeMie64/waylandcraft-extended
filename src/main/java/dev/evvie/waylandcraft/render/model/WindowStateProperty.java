@@ -3,9 +3,7 @@ package dev.evvie.waylandcraft.render.model;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 
-import dev.evvie.waylandcraft.WaylandCraft;
 import dev.evvie.waylandcraft.bridge.WLCToplevel;
-import dev.evvie.waylandcraft.desktop.DesktopEntry;
 import dev.evvie.waylandcraft.item.WindowItem;
 import dev.evvie.waylandcraft.render.model.WindowStateProperty.WindowState;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -26,10 +24,7 @@ public record WindowStateProperty() implements SelectItemModelProperty<WindowSta
 		WLCToplevel toplevel = WindowItem.getToplevel(item);
 		if(toplevel == null) return WindowState.BROKEN;
 		
-		DesktopEntry entry = WaylandCraft.instance.xdgManager.forAppId(toplevel.appID);
-		if(entry == null) return WindowState.NONE;
-		
-		Identifier icon = entry.getIcon();
+		Identifier icon = toplevel.getIcon();
 		if(icon == null) return WindowState.NONE;
 		
 		return WindowState.ICON;

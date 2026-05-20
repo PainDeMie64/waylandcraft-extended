@@ -11,9 +11,7 @@ import com.mojang.blaze3d.vertex.PoseStack.Pose;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.serialization.MapCodec;
 
-import dev.evvie.waylandcraft.WaylandCraft;
 import dev.evvie.waylandcraft.bridge.WLCToplevel;
-import dev.evvie.waylandcraft.desktop.DesktopEntry;
 import dev.evvie.waylandcraft.item.WindowItem;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
@@ -37,11 +35,7 @@ public class WindowSpecialRenderer implements SpecialModelRenderer<Identifier> {
 		WLCToplevel toplevel = WindowItem.getToplevel(item);
 		if(toplevel == null) return null;
 		
-		DesktopEntry entry = WaylandCraft.instance.xdgManager.forAppId(toplevel.appID);
-		if(entry == null) return null;
-		
-		Identifier icon = entry.getIcon();
-		return icon;
+		return toplevel.getIcon();
 	}
 	
 	@Override

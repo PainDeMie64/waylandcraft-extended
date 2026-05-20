@@ -8,7 +8,6 @@ import com.mojang.serialization.Codec;
 
 import dev.evvie.waylandcraft.WaylandCraft;
 import dev.evvie.waylandcraft.bridge.WLCToplevel;
-import dev.evvie.waylandcraft.desktop.DesktopEntry;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -64,17 +63,9 @@ public class WindowItem extends Item {
 		WLCToplevel toplevel = getToplevel(itemStack);
 		if(toplevel == null) return BROKEN_WINDOW_TEXT;
 
-		DesktopEntry entry = WaylandCraft.instance.xdgManager.forAppId(toplevel.appID);
-		if(entry == null) {
-			if(toplevel.title != null) return Component.literal(toplevel.title);
-			if(toplevel.appID != null) return Component.literal(toplevel.appID);
-			return UNKNOWN_WINDOW_TEXT;
-		}
-
-		String name = entry.name;
-		if(name == null) return UNKNOWN_WINDOW_TEXT;
-
-		return Component.literal(name);
+		if(toplevel.title != null) return Component.literal(toplevel.title);
+		if(toplevel.appID != null) return Component.literal(toplevel.appID);
+		return UNKNOWN_WINDOW_TEXT;
 	}
 
 	private static void addTooltip(ItemStack itemStack, TooltipContext ctx, TooltipFlag flag, List<Component> list) {

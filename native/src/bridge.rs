@@ -15,7 +15,7 @@ use jni::{
     signature::{Primitive, ReturnType},
     sys::{
         JNI_TRUE, jarray, jboolean, jbyte, jdouble, jint, jlong, jobject,
-        jsize, jstring, jvalue,
+        jintArray, jsize, jstring, jvalue,
     },
 };
 use smithay::{
@@ -57,6 +57,9 @@ use smithay::{
 use std::ops::DerefMut;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
+use x11rb::protocol::xproto::{
+    AtomEnum as X11AtomEnum, ConnectionExt as _,
+};
 
 #[allow(clippy::vec_box)]
 pub(crate) struct BridgeState {
@@ -1802,6 +1805,103 @@ pub extern "system" fn x11WindowMappedID<'l>(
 ) -> jlong {
     let window = jptr_to_x11window(handle);
     window.mapped_window_id().unwrap_or(0) as jlong
+}
+
+fn read_net_wm_icon(display: u32, window_ids: &[u32]) -> Option<Vec<jint>> {
+    let display = format!(":{display}");
+    let (conn, _) = x11rb::connect(Some(&display)).ok()?;
+    let icon_atom = conn
+        .intern_atom(false, b"_NET_WM_ICON")
+        .ok()?
+        .reply()
+        .ok()?
+        .atom;
+
+    let mut best_icon: Option<(u32, u32, Vec<u32>, i64)> = None;
+    for window_id in window_ids.iter().copied().filter(|id| *id != 0) {
+        let reply = conn
+            .get_property(
+                false,
+                window_id,
+                icon_atom,
+                X11AtomEnum::CARDINAL,
+                0,
+                u32::MAX,
+            )
+            .ok()?
+            .reply()
+            .ok()?;
+        let Some(values) = reply.value32() else {
+            continue;
+        };
+        let values: Vec<u32> = values.collect();
+        let mut idx = 0usize;
+        while idx + 2 <= values.len() {
+            let width = values[idx];
+            let height = values[idx + 1];
+            idx += 2;
+            let Some(pixel_count) =
+                (width as usize).checked_mul(height as usize)
+            else {
+                break;
+            };
+            if width == 0
+                || height == 0
+                || pixel_count == 0
+                || idx + pixel_count > values.len()
+            {
+                break;
+            }
+
+            let pixels = values[idx..idx + pixel_count].to_vec();
+            idx += pixel_count;
+
+            let largest_side = width.max(height) as i64;
+            let area = (width as i64) * (height as i64);
+            let target_delta = (largest_side - 128).abs();
+            let oversize_penalty = if largest_side > 256 { largest_side } else { 0 };
+            let score = target_delta * 1_000_000 + oversize_penalty * 10_000 - area;
+            if best_icon
+                .as_ref()
+                .map(|(_, _, _, best_score)| score < *best_score)
+                .unwrap_or(true)
+            {
+                best_icon = Some((width, height, pixels, score));
+            }
+        }
+    }
+
+    let (width, height, pixels, _) = best_icon?;
+    let mut icon = Vec::with_capacity(pixels.len() + 2);
+    icon.push(width as jint);
+    icon.push(height as jint);
+    icon.extend(pixels.into_iter().map(|pixel| pixel as jint));
+    Some(icon)
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    x11WindowIcon")]
+pub extern "system" fn x11WindowIcon<'l>(
+    env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong,
+    handle: jlong,
+) -> jintArray {
+    let instance = jptr_to_instance(ptr);
+    let Some(display) = instance.state.xdisplay else {
+        return std::ptr::null_mut();
+    };
+    let window = jptr_to_x11window(handle);
+    let window_id = window.window_id();
+    let mapped_window_id = window.mapped_window_id().unwrap_or(0);
+    let Some(icon) = read_net_wm_icon(display, &[window_id, mapped_window_id])
+    else {
+        return std::ptr::null_mut();
+    };
+
+    let array = env.new_int_array(icon.len() as jsize).unwrap();
+    env.set_int_array_region(&array, 0, &icon).unwrap();
+    array.into_raw()
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
