@@ -2,9 +2,9 @@
 
 # WaylandCraft Extended
 
-**WaylandCraft Extended** is a feature-focused fork of [WaylandCraft](https://github.com/EVV1E/waylandcraft), a Wayland compositor inside Minecraft.
+**WaylandCraft Extended** is a feature-focused fork of [WaylandCraft](https://github.com/EVV1E/waylandcraft) that turns Minecraft into an experimental Linux desktop space.
 
-This fork focuses on running more Linux desktop software inside Minecraft, especially X11 apps through Xwayland, Steam, Proton-launched games, and richer in-world monitor controls.
+It expands the original in-game Wayland compositor with Xwayland support, Steam and Proton app support, direct keyboard and pointer capture, real client cursor rendering, persistent in-world monitor layouts, workspace-aware desktop controls, and a physical desktop panel for launching, placing, focusing, minimizing, and closing windows from inside the world.
 
 [Upstream WaylandCraft](https://github.com/EVV1E/waylandcraft) remains the source for the original project, base documentation, screenshots, build instructions, system requirements, general usage, and the original [Modrinth project](https://modrinth.com/mod/waylandcraft). This README documents what is different in this fork.
 
