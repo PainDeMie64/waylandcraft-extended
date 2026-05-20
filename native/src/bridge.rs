@@ -79,6 +79,14 @@ fn jptr_to_instance(ptr: jlong) -> &'static mut WaylandCraft<'static> {
     unsafe { &mut *ptr }
 }
 
+fn surface_label_for_bridge(surface: &WlSurface) -> String {
+    let client = surface
+        .client()
+        .map(|client| format!("{:?}", client.id()))
+        .unwrap_or_else(|| "none".into());
+    format!("resource={:?} client={client}", surface.id())
+}
+
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
     init")]
 pub extern "system" fn init<'l>(
@@ -1246,10 +1254,62 @@ pub extern "system" fn cursorShape<'l>(
 ) -> jint {
     let instance = jptr_to_instance(ptr);
 
+    if instance.state.seat.cursor_hidden {
+        return 0;
+    }
+
     match instance.state.seat.cursor_shape {
         Some(shape) => shape as jint,
         None => -1,
     }
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    cursorSurface")]
+pub extern "system" fn cursorSurface<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong,
+) -> jlong {
+    let instance = jptr_to_instance(ptr);
+    let surface = match instance.state.seat.cursor_surface.clone() {
+        Some(surface) if surface.is_alive() => surface,
+        Some(surface) => {
+            if debug_input_enabled() {
+                println!(
+                    "WLC input cursor surface cleared reason=dead surface={}",
+                    surface_label_for_bridge(&surface)
+                );
+            }
+            instance.state.seat.cursor_surface = None;
+            return 0;
+        }
+        None => return 0,
+    };
+
+    insert_get_handle(&mut instance.bridge.surfaces, &surface)
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    cursorHotspotX")]
+pub extern "system" fn cursorHotspotX<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong,
+) -> jint {
+    let instance = jptr_to_instance(ptr);
+    instance.state.seat.cursor_hotspot.0
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    cursorHotspotY")]
+pub extern "system" fn cursorHotspotY<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    ptr: jlong,
+) -> jint {
+    let instance = jptr_to_instance(ptr);
+    instance.state.seat.cursor_hotspot.1
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\

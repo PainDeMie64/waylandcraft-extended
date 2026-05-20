@@ -25,6 +25,30 @@ public class MouseHandlerMixin {
 	
 	@Shadow public double accumulatedDX;
 	@Shadow public double accumulatedDY;
+	@Shadow private double xpos;
+	@Shadow private double ypos;
+	@Shadow private boolean ignoreFirstMove;
+
+	@Inject(method = "onMove", at = @At("HEAD"), cancellable = true)
+	public void onMove(long windowHandle, double x, double y, CallbackInfo info) {
+		if(WaylandCraft.instance == null) return;
+
+		if(ignoreFirstMove) {
+			if(WaylandCraft.instance.onRawMouseMove(windowHandle, 0, 0)) {
+				xpos = x;
+				ypos = y;
+				ignoreFirstMove = false;
+				info.cancel();
+			}
+			return;
+		}
+
+		if(WaylandCraft.instance.onRawMouseMove(windowHandle, x - xpos, y - ypos)) {
+			xpos = x;
+			ypos = y;
+			info.cancel();
+		}
+	}
 	
 	@Inject(method = "turnPlayer", at = @At("HEAD"), cancellable = true)
 	public void onTurnPlayer(double timeDelta, CallbackInfo info) {

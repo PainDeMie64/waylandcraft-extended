@@ -41,6 +41,9 @@ public class WaylandCraftBridge {
 	private boolean launchedAppsCleaned = false;
 
 	public IconSurface dndIcon = null;
+	public IconSurface cursorIcon = null;
+	public int cursorHotspotX = 0;
+	public int cursorHotspotY = 0;
 
 	private LinkedList<WLCToplevel> focusOrder = new LinkedList<WLCToplevel>();
 
@@ -415,6 +418,18 @@ public class WaylandCraftBridge {
 
 			if(ArrayUtils.contains(minimizeRequests, handle)) window.requests.minimize = true;
 			window.fullscreen = ArrayUtils.contains(fullscreened, handle);
+			if(WaylandCraft.DEBUG_WINDOWS && (!window.debugFullscreenSet || window.debugFullscreen != window.fullscreen)) {
+				WaylandCraft.LOGGER.info("WLC X11 fullscreen state window={} fullscreen={} title={} appID={} native={} surface={}x{}",
+						handle,
+						window.fullscreen,
+						window.title,
+						window.appID,
+						window.nativeGeometry == null ? "null" : window.nativeGeometry.width() + "x" + window.nativeGeometry.height() + "+" + window.nativeGeometry.x() + "+" + window.nativeGeometry.y(),
+						window.surface == null ? 0 : window.surface.width(),
+						window.surface == null ? 0 : window.surface.height());
+				window.debugFullscreen = window.fullscreen;
+				window.debugFullscreenSet = true;
+			}
 		}
 
 		// Create new popups when necessary
@@ -443,6 +458,23 @@ public class WaylandCraftBridge {
 		}
 		else {
 			dndIcon = null;
+		}
+
+		long cursorSurfaceHandle = cursorSurface(instance);
+		if(cursorSurfaceHandle != 0) {
+			WLCSurface cursorSurface = getOrCreateSurface(cursorSurfaceHandle);
+			if(cursorIcon != null && cursorIcon.surface != cursorSurface) cursorIcon = null;
+			if(cursorIcon == null) cursorIcon = new IconSurface(cursorSurface);
+
+			cursorHotspotX = cursorHotspotX(instance);
+			cursorHotspotY = cursorHotspotY(instance);
+			updateSurfaceData(instance, cursorIcon.surface);
+			cursorIcon.surface.visited = true;
+		}
+		else {
+			cursorIcon = null;
+			cursorHotspotX = 0;
+			cursorHotspotY = 0;
 		}
 
 		// All surface trees have now been walked. Now delete all unvisited surfaces
@@ -529,6 +561,14 @@ public class WaylandCraftBridge {
 			dndIcon.framebuffer.render();
 		}
 
+		if(cursorIcon != null) {
+			if(cursorIcon.framebuffer == null) {
+				cursorIcon.framebuffer = new WindowFramebuffer(cursorIcon.surface);
+				framebuffers.add(cursorIcon.framebuffer);
+			}
+			cursorIcon.framebuffer.render();
+		}
+
 		// Cleanup unused framebuffers
 		ArrayList<WindowFramebuffer> usedFramebuffers = new ArrayList<WindowFramebuffer>();
 		for(WLCAbstractWindow window : allWindows) {
@@ -538,6 +578,9 @@ public class WaylandCraftBridge {
 		}
 		if(dndIcon != null && dndIcon.framebuffer != null && dndIcon.framebuffer.surfaceTree.isAlive()) {
 			usedFramebuffers.add(dndIcon.framebuffer);
+		}
+		if(cursorIcon != null && cursorIcon.framebuffer != null && cursorIcon.framebuffer.surfaceTree.isAlive()) {
+			usedFramebuffers.add(cursorIcon.framebuffer);
 		}
 
 		for(WindowFramebuffer framebuffer : framebuffers) {
@@ -974,6 +1017,10 @@ public class WaylandCraftBridge {
 
 	// Get active cursor image
 	private static native int cursorShape(long instance);
+
+	private static native long cursorSurface(long instance);
+	private static native int cursorHotspotX(long instance);
+	private static native int cursorHotspotY(long instance);
 
 	// Set keyboard focus to a wayland surface. The handle may be 0 to unfocus any surfaces
 	private static native void keyboardFocus(long instance, long surfaceHandle);

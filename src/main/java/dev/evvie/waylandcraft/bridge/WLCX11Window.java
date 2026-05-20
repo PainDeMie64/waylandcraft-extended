@@ -12,6 +12,8 @@ public class WLCX11Window extends WLCToplevel {
 	protected int debugNativeHeight = Integer.MIN_VALUE;
 	protected int debugSurfaceWidth = Integer.MIN_VALUE;
 	protected int debugSurfaceHeight = Integer.MIN_VALUE;
+	protected boolean debugFullscreen = false;
+	protected boolean debugFullscreenSet = false;
 
 	public WLCX11Window(long handle) {
 		super(handle);

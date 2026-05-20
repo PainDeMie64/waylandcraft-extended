@@ -47,6 +47,10 @@ public class WLCSurface {
 	private int debugHeight = Integer.MIN_VALUE;
 	private int debugBufferWidth = Integer.MIN_VALUE;
 	private int debugBufferHeight = Integer.MIN_VALUE;
+	private int debugXoff = Integer.MIN_VALUE;
+	private int debugYoff = Integer.MIN_VALUE;
+	private int debugXSubpos = Integer.MIN_VALUE;
+	private int debugYSubpos = Integer.MIN_VALUE;
 	
 	// X and Y offsets relative to parent coords
 	protected int xoff = 0;
@@ -176,7 +180,7 @@ public class WLCSurface {
 		double viewportWidth = viewportSet ? this.sourceView.width : Double.NaN;
 		double viewportHeight = viewportSet ? this.sourceView.height : Double.NaN;
 
-		if(this.debugWidth == this.width && this.debugHeight == this.height && this.debugBufferWidth == bufferWidth && this.debugBufferHeight == bufferHeight && this.debugViewportSet == viewportSet && Double.compare(this.debugViewportX, viewportX) == 0 && Double.compare(this.debugViewportY, viewportY) == 0 && Double.compare(this.debugViewportWidth, viewportWidth) == 0 && Double.compare(this.debugViewportHeight, viewportHeight) == 0) {
+		if(this.debugWidth == this.width && this.debugHeight == this.height && this.debugBufferWidth == bufferWidth && this.debugBufferHeight == bufferHeight && this.debugXoff == this.xoff && this.debugYoff == this.yoff && this.debugXSubpos == this.xSubpos && this.debugYSubpos == this.ySubpos && this.debugViewportSet == viewportSet && Double.compare(this.debugViewportX, viewportX) == 0 && Double.compare(this.debugViewportY, viewportY) == 0 && Double.compare(this.debugViewportWidth, viewportWidth) == 0 && Double.compare(this.debugViewportHeight, viewportHeight) == 0) {
 			return;
 		}
 
@@ -184,6 +188,10 @@ public class WLCSurface {
 		this.debugHeight = this.height;
 		this.debugBufferWidth = bufferWidth;
 		this.debugBufferHeight = bufferHeight;
+		this.debugXoff = this.xoff;
+		this.debugYoff = this.yoff;
+		this.debugXSubpos = this.xSubpos;
+		this.debugYSubpos = this.ySubpos;
 		this.debugViewportSet = viewportSet;
 		this.debugViewportX = viewportX;
 		this.debugViewportY = viewportY;
@@ -191,10 +199,10 @@ public class WLCSurface {
 		this.debugViewportHeight = viewportHeight;
 
 		if(viewportSet) {
-			WaylandCraft.LOGGER.info("WLC surface state handle={} size={}x{} buffer={}x{} viewport={}x{}+{}+{}", this.handle, this.width, this.height, bufferWidth, bufferHeight, viewportWidth, viewportHeight, viewportX, viewportY);
+			WaylandCraft.LOGGER.info("WLC surface state handle={} size={}x{} buffer={}x{} offset={}x{} subpos={}x{} viewport={}x{}+{}+{}", this.handle, this.width, this.height, bufferWidth, bufferHeight, this.xoff, this.yoff, this.xSubpos, this.ySubpos, viewportWidth, viewportHeight, viewportX, viewportY);
 		}
 		else {
-			WaylandCraft.LOGGER.info("WLC surface state handle={} size={}x{} buffer={}x{} viewport=none", this.handle, this.width, this.height, bufferWidth, bufferHeight);
+			WaylandCraft.LOGGER.info("WLC surface state handle={} size={}x{} buffer={}x{} offset={}x{} subpos={}x{} viewport=none", this.handle, this.width, this.height, bufferWidth, bufferHeight, this.xoff, this.yoff, this.xSubpos, this.ySubpos);
 		}
 	}
 	

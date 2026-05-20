@@ -21,6 +21,7 @@ import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.Size;
 import dev.evvie.waylandcraft.desktop.DesktopEntry;
 import dev.evvie.waylandcraft.grabs.WindowGrab;
 import dev.evvie.waylandcraft.mixin.IMouseHandlerMixin;
+import dev.evvie.waylandcraft.render.CursorRenderer;
 import dev.evvie.waylandcraft.render.RenderUtils;
 import dev.evvie.waylandcraft.render.RenderUtils.FitRect;
 import dev.evvie.waylandcraft.render.WindowFramebuffer;
@@ -293,6 +294,11 @@ public class WindowManagerScreen extends Screen {
 				FitRect fit = element.framebufferFit();
 				if(WaylandCraft.DEBUG_WINDOWS) logRenderFit(element, fit);
 				RenderUtils.renderFramebuffer2D(context, buf, fit, "window-manager window=" + element.window.getHandle());
+			}
+			for(WindowElement element : windows) {
+				WindowFramebuffer buf = element.window.framebuffer;
+				if(buf == null) continue;
+				CursorRenderer.renderScreenCursor(context, element.window, element.framebufferFit());
 			}
 		}
 		

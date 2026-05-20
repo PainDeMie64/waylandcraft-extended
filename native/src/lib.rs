@@ -63,6 +63,13 @@ use std::process::Stdio;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
+use x11rb::connection::Connection as _;
+use x11rb::protocol::xproto::{
+    AtomEnum as X11AtomEnum, ConnectionExt as _, PropMode as X11PropMode,
+    Window as X11Window,
+};
+use x11rb::rust_connection::RustConnection;
+use x11rb::wrapper::ConnectionExt as _;
 
 mod bridge;
 mod ddm;
@@ -106,6 +113,93 @@ pub(crate) fn set_debug_input_enabled(enabled: bool) {
     if enabled {
         println!("WLC input native debug enabled by Java bridge");
     }
+}
+
+fn x11_atom(conn: &RustConnection, name: &str) -> Result<u32, String> {
+    conn.intern_atom(false, name.as_bytes())
+        .map_err(|err| err.to_string())?
+        .reply()
+        .map_err(|err| err.to_string())
+        .map(|reply| reply.atom)
+}
+
+fn cleanup_x11_root_refs(
+    display: u32,
+    stale_windows: &[X11Window],
+) -> Result<(), String> {
+    let display_name = format!(":{display}");
+    let (conn, screen_num) = RustConnection::connect(Some(&display_name))
+        .map_err(|err| err.to_string())?;
+    let root = conn.setup().roots[screen_num].root;
+    let client_list = x11_atom(&conn, "_NET_CLIENT_LIST")?;
+    let client_list_stacking = x11_atom(&conn, "_NET_CLIENT_LIST_STACKING")?;
+
+    let changed_clients = cleanup_x11_root_list(
+        &conn,
+        root,
+        client_list,
+        "_NET_CLIENT_LIST",
+        stale_windows,
+    )?;
+    let changed_stacking = cleanup_x11_root_list(
+        &conn,
+        root,
+        client_list_stacking,
+        "_NET_CLIENT_LIST_STACKING",
+        stale_windows,
+    )?;
+
+    if debug_x11_enabled() && (changed_clients || changed_stacking) {
+        eprintln!(
+            "WLC X11 root cleanup display=:{display} ids={stale_windows:x?} clientListChanged={changed_clients} stackingChanged={changed_stacking}"
+        );
+    }
+
+    conn.flush().map_err(|err| err.to_string())
+}
+
+fn cleanup_x11_root_list(
+    conn: &RustConnection,
+    root: X11Window,
+    property: u32,
+    property_name: &str,
+    stale_windows: &[X11Window],
+) -> Result<bool, String> {
+    let reply = conn
+        .get_property(false, root, property, X11AtomEnum::WINDOW, 0, u32::MAX)
+        .map_err(|err| err.to_string())?
+        .reply()
+        .map_err(|err| err.to_string())?;
+    let Some(values) = reply.value32() else {
+        return Ok(false);
+    };
+    let old: Vec<X11Window> = values.collect();
+    let new: Vec<X11Window> = old
+        .iter()
+        .copied()
+        .filter(|window| !stale_windows.contains(window))
+        .collect();
+
+    if old.len() == new.len() {
+        return Ok(false);
+    }
+
+    conn.change_property32(
+        X11PropMode::REPLACE,
+        root,
+        property,
+        X11AtomEnum::WINDOW,
+        &new,
+    )
+    .map_err(|err| err.to_string())?;
+
+    if debug_x11_enabled() {
+        eprintln!(
+            "WLC X11 root property cleanup property={property_name} old={old:x?} new={new:x?}"
+        );
+    }
+
+    Ok(true)
 }
 
 pub(crate) fn log_native_stderr(message: &str) {
@@ -354,6 +448,30 @@ impl WLCState {
         geometry.loc.x = geometry.loc.x.max(0).min(bounds.w - geometry.size.w);
         geometry.loc.y = geometry.loc.y.max(0).min(bounds.h - geometry.size.h);
         geometry
+    }
+
+    fn cleanup_destroyed_x11_root_refs(
+        &self,
+        window_id: X11Window,
+        mapped_window_id: Option<X11Window>,
+    ) {
+        let Some(display) = self.xdisplay else {
+            return;
+        };
+
+        let ids = if let Some(mapped_window_id) = mapped_window_id {
+            vec![window_id, mapped_window_id]
+        } else {
+            vec![window_id]
+        };
+
+        if let Err(err) = cleanup_x11_root_refs(display, &ids) {
+            if debug_x11_enabled() {
+                eprintln!(
+                    "WLC X11 root cleanup failed display=:{display} ids={ids:x?} err={err}"
+                );
+            }
+        }
     }
 
     fn start_xwayland(&mut self, handle: LoopHandle<'static, WLCState>) {
@@ -651,6 +769,10 @@ impl XwmHandler for WLCState {
                 self.describe_x11_window(&window)
             );
         }
+        self.cleanup_destroyed_x11_root_refs(
+            window.window_id(),
+            window.mapped_window_id(),
+        );
         self.untrack_x11_window(&window);
     }
 

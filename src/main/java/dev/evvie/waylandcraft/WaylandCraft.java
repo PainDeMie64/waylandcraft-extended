@@ -233,10 +233,45 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	}
 	
 	public void enableKeyboardCapture(boolean hardCapture) {
+		if(hardCapture) {
+			if(keyboardCaptureMode == KeyboardCaptureMode.HARD_CAPTURE) return;
+			if(!enableHardPointerCapture("hard-capture-toggle")) return;
+			keyboardCaptureMode = KeyboardCaptureMode.HARD_CAPTURE;
+			bridge.activateKeyboard();
+			Minecraft.getInstance().mouseHandler.grabMouse();
+			return;
+		}
+
 		if(keyboardCaptureMode != KeyboardCaptureMode.NONE) return;
-		
-		keyboardCaptureMode = hardCapture ? KeyboardCaptureMode.HARD_CAPTURE : KeyboardCaptureMode.CAPTURE;
+
+		keyboardCaptureMode = KeyboardCaptureMode.CAPTURE;
 		bridge.activateKeyboard();
+	}
+
+	private boolean enableHardPointerCapture(String reason) {
+		WLCToplevel target = bridge.getMostRecentFocus();
+		if(target == null && hoveredDisplay != null) {
+			target = rootToplevel(hoveredDisplay.target.window);
+		}
+		if(target == null || target.getSurfaceTree() == null || !target.getSurfaceTree().isAlive()) {
+			if(DEBUG_WINDOWS) LOGGER.info("WLC pointer hard capture skipped reason={} target=none", reason);
+			return false;
+		}
+
+		WLCSurface surface = target.getSurfaceTree();
+		double x = Math.max(0.0, surface.width() / 2.0);
+		double y = Math.max(0.0, surface.height() / 2.0);
+
+		bridge.focusSurface(target);
+		bridge.sendMotionRefocus(surface, x, y, reason);
+		bridge.maybeLockPointer(surface);
+		pointerCapture = new PointerCapture(surface, x, y, true);
+		hoveredDisplay = null;
+		overridePickBlock = true;
+		if(DEBUG_WINDOWS) {
+			LOGGER.info("WLC pointer capture start reason={} mode=hard surface={} owner={} at={}x{}", reason, surface.getDebugHandle(), describeSurfaceOwner(surface), x, y);
+		}
+		return true;
 	}
 	
 	public void disableKeyboardCapture() {
@@ -492,7 +527,8 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			
 			this.cursorShape = bridge.getCursorShape();
 			
-			if(!bridge.maybeLockPointer(pointerCapture.surface)) {
+			boolean locked = bridge.maybeLockPointer(pointerCapture.surface);
+			if(!pointerCapture.hard && !locked) {
 				disablePointerCapture("lock-lost");
 			}
 			
@@ -585,7 +621,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			bridge.sendMotionRefocus(surface, rel.x, rel.y);
 			
 			if(keyboardCaptureMode != KeyboardCaptureMode.NONE && bridge.maybeLockPointer(surface)) {
-				pointerCapture = new PointerCapture(surface, rel.x, rel.y);
+				pointerCapture = new PointerCapture(surface, rel.x, rel.y, false);
 				if(DEBUG_WINDOWS) {
 					LOGGER.info("WLC pointer capture start reason=keyboard-capture-lock surface={} owner={} at={}x{}", surface.getDebugHandle(), describeSurfaceOwner(surface), rel.x, rel.y);
 				}
@@ -720,6 +756,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	 */
 	public boolean onMouseTurn(double dx, double dy) {
 		if(pointerCapture == null) return false;
+		if(pointerCapture.hard) return true;
 		
 		bridge.sendRelativeMotion(dx, dy);
 		
@@ -728,6 +765,26 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		// otherwise relative motion seems to not work.
 //		bridge.sendMotion(pointerCapture.x += dx, pointerCapture.y += dy);
 		
+		return true;
+	}
+
+	/* Handle raw cursor motion before Minecraft accumulates it for camera turning. */
+	public boolean onRawMouseMove(long windowHandle, double dx, double dy) {
+		if(bridge == null) return false;
+		if(keyboardCaptureMode != KeyboardCaptureMode.HARD_CAPTURE) return false;
+		if(pointerCapture == null) return false;
+		if(!pointerCapture.surface.isAlive()) {
+			disablePointerCapture("surface-dead");
+			return true;
+		}
+		if(windowHandle != Minecraft.getInstance().getWindow().handle()) return false;
+
+		double maxX = Math.max(1.0, pointerCapture.surface.width());
+		double maxY = Math.max(1.0, pointerCapture.surface.height());
+		pointerCapture.x = Math.clamp(pointerCapture.x + dx, 0.0, maxX);
+		pointerCapture.y = Math.clamp(pointerCapture.y + dy, 0.0, maxY);
+		bridge.sendMotion(pointerCapture.x, pointerCapture.y);
+		bridge.sendRelativeMotion(dx, dy);
 		return true;
 	}
 	
@@ -930,12 +987,14 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		public double x;
 		public double y;
 		
+		public final boolean hard;
 		public HashSet<Integer> pressedButtons = new HashSet<Integer>();
 		
-		public PointerCapture(WLCSurface surface, double x, double y) {
+		public PointerCapture(WLCSurface surface, double x, double y, boolean hard) {
 			this.surface = surface;
 			this.x = x;
 			this.y = y;
+			this.hard = hard;
 		}
 		
 	}

@@ -71,6 +71,12 @@ public class WindowFramebuffer {
 	private int height = 0;
 	private int xoff;
 	private int yoff;
+	private int debugXoff = Integer.MIN_VALUE;
+	private int debugYoff = Integer.MIN_VALUE;
+	private int debugMinX = Integer.MIN_VALUE;
+	private int debugMinY = Integer.MIN_VALUE;
+	private int debugMaxX = Integer.MIN_VALUE;
+	private int debugMaxY = Integer.MIN_VALUE;
 	private int generation = 0;
 	private final int debugId = TextureDebug.nextFramebufferId();
 
@@ -135,6 +141,8 @@ public class WindowFramebuffer {
 		this.width = maxX - minX;
 		this.height = maxY - minY;
 
+		logBoundsIfChanged(minX, minY, maxX, maxY);
+
 		if(width <= 0 || height <= 0) {
 			destroy();
 			return;
@@ -148,6 +156,30 @@ public class WindowFramebuffer {
 		}
 
 		if(texture == null) registerTexture();
+	}
+
+	private void logBoundsIfChanged(int minX, int minY, int maxX, int maxY) {
+		if(!WaylandCraft.DEBUG_WINDOWS) return;
+		if(debugXoff == xoff && debugYoff == yoff && debugMinX == minX && debugMinY == minY && debugMaxX == maxX && debugMaxY == maxY) return;
+
+		debugXoff = xoff;
+		debugYoff = yoff;
+		debugMinX = minX;
+		debugMinY = minY;
+		debugMaxX = maxX;
+		debugMaxY = maxY;
+
+		WaylandCraft.LOGGER.info("WLC framebuffer bounds fb#{} root={} bounds={}x{}..{}x{} size={}x{} offset={}x{}",
+				debugId,
+				surfaceTree.getDebugHandle(),
+				minX,
+				minY,
+				maxX,
+				maxY,
+				width,
+				height,
+				xoff,
+				yoff);
 	}
 
 	private String name() {

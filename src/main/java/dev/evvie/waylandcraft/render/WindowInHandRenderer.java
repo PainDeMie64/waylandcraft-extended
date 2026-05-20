@@ -3,12 +3,9 @@ package dev.evvie.waylandcraft.render;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 
-import dev.evvie.waylandcraft.WaylandCraft;
 import dev.evvie.waylandcraft.bridge.WLCToplevel;
-import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.Size;
 import dev.evvie.waylandcraft.item.WindowItem;
 import dev.evvie.waylandcraft.mixin.IItemInHandRendererMixin;
-import dev.evvie.waylandcraft.render.RenderUtils.FitRect;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.util.Mth;
@@ -52,32 +49,14 @@ public class WindowInHandRenderer {
 		if(toplevel == null) return;
 		if(toplevel.framebuffer == null) return;
 		
-		float width = toplevel.geometry.width();
-		float height = toplevel.geometry.height();
-		
-		Size size = WaylandCraft.instance.bridge.getOutputSize();
-		float sWidth = size.width();
-		float sHeight = size.height();
-		
-		float wscale;
-		float hscale;
-		
-		/* The following math was established entirely through the use of intuitive guesswork and brute force.*/
-		/* It does not work when the game is running at an aspect ratio < 1, but who's weird enough play like that? */
-		
-		float relW = (width / height) / (sWidth / sHeight);
-		
-		// window aspect ratio lesser than screen aspect ratio
-		if(relW <= 1) {
-			wscale = width / height;
+		float sourceWidth = Math.max(1.0f, toplevel.framebuffer.getWidth());
+		float sourceHeight = Math.max(1.0f, toplevel.framebuffer.getHeight());
+		float aspect = sourceWidth / sourceHeight;
+		float wscale = 1.0f;
+		float hscale = 1.0f / aspect;
+		if(hscale > 1.0f) {
+			wscale = aspect;
 			hscale = 1.0f;
-			
-			wscale /= (sWidth / sHeight);
-			hscale /= (sWidth / sHeight);
-		}
-		else {
-			wscale = 1.0f;
-			hscale = height / width;
 		}
 		
 		/* Move windows with small aspect ratio about in the hand */
@@ -93,11 +72,10 @@ public class WindowInHandRenderer {
 		poseStack.scale(wscale, hscale, 1);
 		poseStack.translate(-0.5, -0.5, 0);
 		
-		FitRect fit = RenderUtils.aspectFit(toplevel.framebuffer, 0, 0, 1, 1);
-		Vec3 tl = new Vec3(fit.x(), 1 - fit.y(), 0);
-		Vec3 bl = new Vec3(fit.x(), 1 - fit.bottom(), 0);
-		Vec3 br = new Vec3(fit.right(), 1 - fit.bottom(), 0);
-		Vec3 tr = new Vec3(fit.right(), 1 - fit.y(), 0);
+		Vec3 tl = new Vec3(0, 1, 0);
+		Vec3 bl = new Vec3(0, 0, 0);
+		Vec3 br = new Vec3(1, 0, 0);
+		Vec3 tr = new Vec3(1, 1, 0);
 		
 		RenderUtils.renderFramebuffer(toplevel.framebuffer, poseStack, collector, false, tl, bl, br, tr, "in-hand window=" + toplevel.getHandle());
 	}

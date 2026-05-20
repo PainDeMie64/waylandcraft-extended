@@ -53,6 +53,16 @@ This fork focuses on running more Linux desktop software inside Minecraft, espec
 - Cleans up embedded app processes when Minecraft shuts down, reducing leftover Steam/Proton child processes after crashes or forced exits.
 - Adds X11 lifecycle diagnostics for hidden, unmapped, destroyed, or untracked X11 windows.
 
+## Important Launch Setting
+
+On NVIDIA systems, launch Minecraft with this environment variable:
+
+```sh
+__GL_THREADED_OPTIMIZATIONS=0
+```
+
+This avoids known EGL/context issues seen while testing WaylandCraft Extended. In Modrinth App, add it under the instance settings' custom environment variables.
+
 ## Debugging Flags
 
 The fork includes opt-in diagnostics for development and bug reports:
@@ -62,12 +72,6 @@ The fork includes opt-in diagnostics for development and bug reports:
 - `WAYLANDCRAFT_DEBUG_INPUT=1`: low-level native input and X11 event diagnostics.
 - `WAYLANDCRAFT_DEBUG_TEXTURES=1`: texture, dmabuf, framebuffer, and TextureManager lifecycle logging.
 - `WAYLANDCRAFT_DEBUG_OVERLAY=1`: visual overlay for presentation/fit debugging.
-
-For NVIDIA crashes with `GLFW error: EGL: Failed to clear current context`, the same workaround used while testing this fork is:
-
-```sh
-__GL_THREADED_OPTIMIZATIONS=0
-```
 
 ## Documentation
 

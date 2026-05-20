@@ -12,6 +12,7 @@ import dev.evvie.waylandcraft.bridge.WLCSurface;
 import dev.evvie.waylandcraft.bridge.WLCToplevel;
 import dev.evvie.waylandcraft.bridge.WLCX11Window;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.Size;
+import dev.evvie.waylandcraft.render.CursorRenderer;
 import dev.evvie.waylandcraft.render.RenderUtils;
 import dev.evvie.waylandcraft.render.RenderUtils.FitRect;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
@@ -167,6 +168,7 @@ public class WindowDisplay {
 		poseStack.translate(originRel.x, originRel.y, originRel.z);
 		RenderUtils.renderFramebuffer(window.framebuffer, poseStack, ctx.submitNodeCollector(), true, tl, bl, br, tr, "world-display window=" + window.getHandle());
 		renderMonitorChrome(ctx, poseStack, localX, localY);
+		CursorRenderer.renderWorldCursor(ctx, poseStack, localX, localY, normal, window, fit);
 		poseStack.popPose();
 	}
 
