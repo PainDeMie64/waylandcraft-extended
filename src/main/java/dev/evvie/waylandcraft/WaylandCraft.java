@@ -21,6 +21,8 @@ import dev.evvie.waylandcraft.bridge.WLCToplevel;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.ResizeRequest;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.Size;
+import dev.evvie.waylandcraft.desktop.DesktopManager;
+import dev.evvie.waylandcraft.desktop.DesktopPanel.PanelHit;
 import dev.evvie.waylandcraft.desktop.XDGDesktopManager;
 import dev.evvie.waylandcraft.grabs.DNDGrab;
 import dev.evvie.waylandcraft.grabs.MonitorClientResizeGrab;
@@ -85,6 +87,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	
 	public WindowItemManager itemManager = new WindowItemManager(this);
 	public XDGDesktopManager xdgManager;
+	public DesktopManager desktopManager;
 	public WaylandCraftSettingsManager settingsManager;
 	
 	public KeyMapping keyOpenScreen;
@@ -104,6 +107,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	public KeyboardCaptureMode keyboardCaptureMode = KeyboardCaptureMode.NONE;
 	
 	public PointerCapture pointerCapture = null;
+	public PanelHit hoveredPanel = null;
 	public boolean snapMonitorPlacement = false;
 	private boolean altChordActive = false;
 	private boolean altChordClean = false;
@@ -161,6 +165,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			waylandSocket = bridge.getSocket();
 			xdgManager = new XDGDesktopManager(this);
 			settingsManager = new WaylandCraftSettingsManager(this);
+			desktopManager = new DesktopManager(this);
 			
 			LOGGER.info("Server started on " + waylandSocket);
 		}
@@ -171,6 +176,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		if(bridge == null) return;
 		
 		displays.forEach((d) -> d.render(ctx));
+		if(desktopManager != null) desktopManager.render(ctx);
 	}
 	
 	public void updateWorld(LevelExtractionContext ctx) {
@@ -191,6 +197,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		displays.removeIf((d) -> !d.isValid());
 		displays.forEach((d) -> d.updateGeometry());
+		if(desktopManager != null) desktopManager.update();
 		
 		for(WLCPopup popup : bridge.getMappedPopups()) {
 			anchorToParent(popup);
@@ -311,6 +318,11 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			minecraft.setScreen(new AppLauncherScreen(WaylandCraft.instance));
 			return;
 		}
+
+		if(desktopManager != null && keyCaptureKeyboard.consumeClick()) {
+			desktopManager.placePanelInFrontOfPlayer();
+			return;
+		}
 		
 	}
 	
@@ -321,7 +333,12 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	
 	private void updateDisplayRequests() {
 		// Hide all windows that were minimized and unset minimize requested state
-		displays.removeIf((w) -> w.window instanceof WLCToplevel && ((WLCToplevel) w.window).requests.minimize);
+		if(desktopManager != null) {
+			for(WindowDisplay display : displays) {
+				if(display.window instanceof WLCToplevel toplevel && toplevel.requests.minimize) desktopManager.markMinimized(toplevel);
+			}
+		}
+		if(displays.removeIf((w) -> w.window instanceof WLCToplevel && ((WLCToplevel) w.window).requests.minimize) && desktopManager != null) desktopManager.markDirty();
 		Stream.of(bridge.getToplevels()).forEach((t) -> t.requests.minimize = false);
 		
 		// Handle any maximize or unmaximize requests
@@ -442,6 +459,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		display = new WindowDisplay(window);
 		displays.add(display);
+		if(desktopManager != null && window instanceof WLCToplevel) desktopManager.markDirty();
 		
 		return display;
 	}
@@ -537,6 +555,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		// Reset hovered display and pick block override
 		this.hoveredDisplay = null;
+		this.hoveredPanel = null;
 		this.overridePickBlock = false;
 		
 		if(Minecraft.getInstance().screen instanceof WindowManagerScreen) {
@@ -564,17 +583,31 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 				finalDistance = dist;
 			}
 		}
+
+		PanelHit panelHit = null;
+		double panelDistance = Double.POSITIVE_INFINITY;
+		if(desktopManager != null && desktopManager.panel != null) {
+			panelHit = desktopManager.panel.intersect(pos, look);
+			if(panelHit != null) panelDistance = panelHit.position().distanceToSqr(pos);
+		}
 		
 		// Check if game hit result closer
 		// Must use trueGameHitResult because the game hit result is overridden by overridePickBlock
 		HitResult gameHitResult = trueGameHitResult;
 		double gameHitDistance = (gameHitResult == null || gameHitResult.getType() == HitResult.Type.MISS) ? Double.POSITIVE_INFINITY : gameHitResult.getLocation().distanceToSqr(pos);
-		if(gameHitDistance < finalDistance) finalHitResult = null;
+		double interactiveDistance = Math.min(finalDistance, panelDistance);
+		if(gameHitDistance < interactiveDistance) {
+			finalHitResult = null;
+			panelHit = null;
+		}
 		
 		// Check for player reach
 		if(finalHitResult != null && !finalHitResult.position.closerThan(pos, Minecraft.getInstance().player.blockInteractionRange())) finalHitResult = null;
+		if(panelHit != null && !panelHit.position().closerThan(pos, Minecraft.getInstance().player.blockInteractionRange())) panelHit = null;
+		if(panelHit != null && panelDistance < finalDistance) finalHitResult = null;
 		
 		if(!pointerGrabs.isExclusiveGrabActive()) hoveredDisplay = finalHitResult;
+		if(!pointerGrabs.isGrabActive()) hoveredPanel = panelHit;
 		if(finalHitResult != null) {
 			activeChromeDisplay = finalHitResult.target;
 		}
@@ -600,6 +633,13 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		/* All of the following code will only be executed when there aren't any active pointer grabs */
 		
+		if(hoveredPanel != null) {
+			this.overridePickBlock = true;
+			this.cursorShape = CursorShape.POINTER;
+			bridge.sendMotionOutside();
+			return;
+		}
+
 		if(hoveredDisplay != null && !canStartInteracting()) hoveredDisplay = null;
 		
 		if(hoveredDisplay != null) {
@@ -666,6 +706,11 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		// Handle implicit pointer grab button presses
 		if(action == 1) {
+			if(hoveredPanel != null && desktopManager != null) {
+				desktopManager.handlePanelButton(hoveredPanel, button);
+				return true;
+			}
+
 			if(hoveredDisplay != null && hoveredDisplay.control.isButton()) {
 				handleMonitorControl(hoveredDisplay, button);
 				return true;
@@ -720,6 +765,11 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		switch(hit.control) {
 		case MOVE:
 			pointerGrabs.startExclusive(new MonitorMoveGrab(hit.target, button, hit.surfaceLocalOrigin));
+			break;
+		case MINIMIZE:
+			if(desktopManager != null) desktopManager.markMinimized(toplevel);
+			displays.remove(hit.target);
+			editedDisplay = null;
 			break;
 		case RESIZE_MONITOR_TOP_LEFT:
 		case RESIZE_MONITOR_TOP_RIGHT:
@@ -840,6 +890,11 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 
 		if(altDown && key == GLFW.GLFW_KEY_R) {
 			if(press) toggleRotationMode();
+			return true;
+		}
+
+		if(altDown && key == GLFW.GLFW_KEY_P) {
+			if(press && desktopManager != null) desktopManager.placePanelInFrontOfPlayer();
 			return true;
 		}
 

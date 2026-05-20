@@ -57,6 +57,7 @@ public class MonitorResizeGrab extends PointerGrab {
 		if(corner.isTopCorner()) newOrigin = newOrigin.add(window.localY().scale(startHeight - height));
 		window.setPresentationSize(width, height);
 		window.moveOrigin(newOrigin);
+		if(wlc.desktopManager != null) wlc.desktopManager.markDirty();
 	}
 
 }

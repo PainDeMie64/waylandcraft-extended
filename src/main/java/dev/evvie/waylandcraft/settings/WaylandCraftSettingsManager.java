@@ -84,5 +84,9 @@ public class WaylandCraftSettingsManager {
 			return null;
 		}
 	}
+
+	public File getSettingsDir() {
+		return settingsDir;
+	}
 	
 }

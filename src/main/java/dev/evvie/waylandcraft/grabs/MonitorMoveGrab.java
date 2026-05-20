@@ -41,6 +41,7 @@ public class MonitorMoveGrab extends PointerGrab {
 				.add(window.localY().scale(centerY - grabbedLocal.y));
 		wlc.snapDisplayPlacement(window);
 		wlc.snapDisplayOrientation(window);
+		if(wlc.desktopManager != null) wlc.desktopManager.markDirty();
 	}
 
 }

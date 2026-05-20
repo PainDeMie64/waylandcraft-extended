@@ -234,6 +234,12 @@ public class WindowDisplay {
 			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.78, y + s * 0.50, x + s * 0.66, y + s * 0.38, depth, t, iconColor);
 			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.78, y + s * 0.50, x + s * 0.66, y + s * 0.62, depth, t, iconColor);
 			break;
+		case MINIMIZE:
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.25, y + s * 0.62, x + s * 0.75, y + s * 0.62, depth, t + 1, iconColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.50, y + s * 0.25, x + s * 0.50, y + s * 0.62, depth, t, iconColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.50, y + s * 0.62, x + s * 0.36, y + s * 0.48, depth, t, iconColor);
+			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.50, y + s * 0.62, x + s * 0.64, y + s * 0.48, depth, t, iconColor);
+			break;
 		case CLOSE:
 			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.28, y + s * 0.28, x + s * 0.72, y + s * 0.72, depth, t + 1, accentColor);
 			RenderUtils.renderSolidLine(poseStack, ctx.submitNodeCollector(), localX, localY, x + s * 0.72, y + s * 0.28, x + s * 0.28, y + s * 0.72, depth, t + 1, accentColor);
@@ -381,12 +387,13 @@ public class WindowDisplay {
 	}
 
 	private ControlRect controlRect(MonitorControl control) {
-		double totalWidth = CONTROL_SIZE * 2 + CONTROL_GAP;
+		double totalWidth = CONTROL_SIZE * 3 + CONTROL_GAP * 2;
 		double startX = width / 2.0 - totalWidth / 2.0;
 		double y = -CONTROL_SIZE - CONTROL_GAP;
 		return switch(control) {
 		case MOVE -> new ControlRect(startX, y, CONTROL_SIZE, CONTROL_SIZE);
-		case CLOSE -> new ControlRect(startX + CONTROL_SIZE + CONTROL_GAP, y, CONTROL_SIZE, CONTROL_SIZE);
+		case MINIMIZE -> new ControlRect(startX + CONTROL_SIZE + CONTROL_GAP, y, CONTROL_SIZE, CONTROL_SIZE);
+		case CLOSE -> new ControlRect(startX + CONTROL_SIZE * 2 + CONTROL_GAP * 2, y, CONTROL_SIZE, CONTROL_SIZE);
 		case RESIZE_APP_TOP_LEFT -> new ControlRect(CORNER_INSET, CORNER_INSET, CORNER_HANDLE, CORNER_HANDLE);
 		case RESIZE_APP_TOP_RIGHT -> new ControlRect(width - CORNER_INSET - CORNER_HANDLE, CORNER_INSET, CORNER_HANDLE, CORNER_HANDLE);
 		case RESIZE_APP_BOTTOM_LEFT -> new ControlRect(CORNER_INSET, height - CORNER_INSET - CORNER_HANDLE, CORNER_HANDLE, CORNER_HANDLE);
@@ -400,7 +407,7 @@ public class WindowDisplay {
 	}
 
 	private ControlRect chromeRect() {
-		double totalWidth = CONTROL_SIZE * 2 + CONTROL_GAP;
+		double totalWidth = CONTROL_SIZE * 3 + CONTROL_GAP * 2;
 		double x = Math.min(-OVERLAY_PADDING, width / 2.0 - totalWidth / 2.0);
 		double y = -CONTROL_SIZE - CONTROL_GAP;
 		double right = Math.max(width + OVERLAY_PADDING, width / 2.0 + totalWidth / 2.0);
@@ -519,6 +526,7 @@ public class WindowDisplay {
 		NONE,
 		CHROME,
 		MOVE,
+		MINIMIZE,
 		CLOSE,
 		RESIZE_MONITOR_TOP_LEFT,
 		RESIZE_MONITOR_TOP_RIGHT,
@@ -530,7 +538,7 @@ public class WindowDisplay {
 		RESIZE_APP_BOTTOM_RIGHT;
 
 		public boolean isButton() {
-			return this == MOVE || this == CLOSE || isCornerResize();
+			return this == MOVE || this == MINIMIZE || this == CLOSE || isCornerResize();
 		}
 
 		public boolean isCornerResize() {
