@@ -21,7 +21,7 @@ public class WLCX11Window extends WLCToplevel {
 
 	@Override
 	public boolean isMapped() {
-		return isAlive() && getSurfaceTree() != null && getSurfaceTree().getBuffer() != null;
+		return isAlive() && x11MappedWindowID != 0 && getSurfaceTree() != null && getSurfaceTree().getBuffer() != null;
 	}
 
 }

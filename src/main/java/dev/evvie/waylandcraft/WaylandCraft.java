@@ -229,7 +229,9 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 				WLCToplevel toplevel = WindowItem.getToplevel(item);
 				
 				if(toplevel != null) {
-					getOrCreateDisplay(toplevel).anchorToCamera(camera);
+					WindowDisplay display = getOrCreateDisplay(toplevel);
+					display.anchorToCamera(camera);
+					if(desktopManager != null) desktopManager.placeOnCurrentWorkspace(toplevel, display);
 					WaylandCraft.instance.bridge.focusSurface(toplevel);
 				}
 			}

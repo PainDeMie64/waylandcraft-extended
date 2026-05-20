@@ -94,11 +94,6 @@ public class DesktopManager {
 		case WINDOW:
 			WLCToplevel toplevel = toplevelByHandle(button.id);
 			if(toplevel == null) return;
-			if(mouseButton == 1) {
-				wlc.bridge.closeToplevel(toplevel);
-				notify("window", "Closed", windowTitle(toplevel));
-				break;
-			}
 			if(wlc.hasDisplayFor(toplevel)) {
 				wlc.bridge.focusSurface(toplevel);
 				assignWorkspace(toplevel, currentWorkspace());
@@ -112,6 +107,19 @@ public class DesktopManager {
 		default:
 			break;
 		}
+		markDirty();
+	}
+
+	public void placeOnCurrentWorkspace(WLCToplevel toplevel, WindowDisplay display) {
+		assignWorkspace(toplevel, currentWorkspace());
+		MonitorState state = layout.monitors.get(stableId(toplevel));
+		if(state == null) return;
+		state.lifecycle = "placed";
+		state.presentationWidth = display.presentationWidth();
+		state.presentationHeight = display.presentationHeight();
+		state.pivot = fromVec(display.pivot);
+		state.normal = fromVec(display.normal());
+		state.down = fromVec(display.down());
 		markDirty();
 	}
 
@@ -244,6 +252,9 @@ public class DesktopManager {
 		});
 		state.workspace = workspace;
 		state.lifecycle = wlc.hasDisplayFor(toplevel) ? "placed" : "unplaced";
+		for(DesktopWorkspace existing : layout.workspaces) {
+			existing.windowIds.remove(state.stableId);
+		}
 		if(!layout.workspace(workspace).windowIds.contains(state.stableId)) layout.workspace(workspace).windowIds.add(state.stableId);
 	}
 

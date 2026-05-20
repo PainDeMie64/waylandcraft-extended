@@ -19,7 +19,11 @@ use jni::{
     },
 };
 use smithay::{
-    backend::allocator::{Buffer, dmabuf::WeakDmabuf},
+    backend::{
+        allocator::{Buffer, dmabuf::WeakDmabuf},
+        input::KeyState as BackendKeyState,
+    },
+    input::keyboard::{FilterResult, Keycode},
     reexports::{
         wayland_protocols::xdg::shell::server::xdg_toplevel,
         wayland_server::{
@@ -1338,6 +1342,7 @@ pub extern "system" fn keyboardFocus<'l>(
         None => instance.state.seat.keyboard_unfocus(),
     };
 
+    instance.state.focused_x11_window = None;
     if let Some(keyboard) = instance.state.xwayland_keyboard.clone() {
         keyboard.set_focus(
             &mut instance.state,
@@ -1411,15 +1416,63 @@ pub extern "system" fn keyboardInput<'l>(
     let instance = jptr_to_instance(ptr);
 
     let scancode = scancode as u32;
-    let action = match action {
-        0 => KeyState::Released,
-        1 => KeyState::Pressed,
+    let (wl_action, backend_action) = match action {
+        0 => (KeyState::Released, BackendKeyState::Released),
+        1 => (KeyState::Pressed, BackendKeyState::Pressed),
         _ => {
             return;
         }
     };
 
-    instance.state.seat.keyboard_key(scancode, action);
+    let x11_target = instance
+        .state
+        .focused_x11_window
+        .as_ref()
+        .filter(|window| {
+            window.alive() && WLCState::should_track_x11_window(window)
+        })
+        .cloned();
+
+    if let (Some(keyboard), Some(target)) =
+        (instance.state.xwayland_keyboard.clone(), x11_target)
+    {
+        if debug_input_enabled() {
+            println!(
+                "WLC input keyboard xwayland target={} scancode={} state={:?}",
+                instance.state.describe_x11_window(&target),
+                scancode,
+                backend_action
+            );
+        }
+        keyboard.set_focus(
+            &mut instance.state,
+            Some(target),
+            SERIAL_COUNTER.next_serial(),
+        );
+        keyboard.input::<(), _>(
+            &mut instance.state,
+            Keycode::new(scancode),
+            backend_action,
+            SERIAL_COUNTER.next_serial(),
+            get_time(),
+            |_, _, _| FilterResult::Forward,
+        );
+        if debug_input_enabled() {
+            println!(
+                "WLC input keyboard wayland-shadow scancode={} state={:?}",
+                scancode, wl_action
+            );
+        }
+        instance.state.seat.keyboard_key(scancode, wl_action);
+    } else {
+        if debug_input_enabled() {
+            println!(
+                "WLC input keyboard wayland scancode={} state={:?}",
+                scancode, wl_action
+            );
+        }
+        instance.state.seat.keyboard_key(scancode, wl_action);
+    }
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
@@ -1947,6 +2000,7 @@ pub extern "system" fn x11WindowFocus<'l>(
         instance.state.data.update_clipboard_client(client);
         instance.state.seat.keyboard_focus(surface);
     }
+    instance.state.focused_x11_window = Some(window.clone());
 
     for x11_window in instance.state.x11_windows.iter() {
         let _ = x11_window.set_activated(**x11_window == window);

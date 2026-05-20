@@ -11,6 +11,7 @@ import org.joml.Matrix3x2fStack;
 import org.lwjgl.glfw.GLFW;
 
 import dev.evvie.waylandcraft.WaylandCraft;
+import dev.evvie.waylandcraft.WindowDisplay;
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow;
 import dev.evvie.waylandcraft.bridge.WLCPopup;
 import dev.evvie.waylandcraft.bridge.WLCSurface;
@@ -163,8 +164,10 @@ public class WindowManagerScreen extends Screen {
 	
 	private void onGrabPressed(Button button) {
 		if(focused == null) return;
-		
-		wlc.pointerGrabs.startExclusive(new WindowGrab(wlc.getOrCreateDisplay(focused), 0));
+
+		WindowDisplay display = wlc.getOrCreateDisplay(focused);
+		if(wlc.desktopManager != null) wlc.desktopManager.placeOnCurrentWorkspace(focused, display);
+		wlc.pointerGrabs.startExclusive(new WindowGrab(display, 0));
 		this.onClose();
 	}
 	

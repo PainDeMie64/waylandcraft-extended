@@ -246,6 +246,7 @@ pub struct WLCState {
     pub xwm: Option<X11Wm>,
     pub xdisplay: Option<u32>,
     pub x11_windows: Vec<Box<X11Surface>>,
+    pub focused_x11_window: Option<X11Surface>,
     pub(crate) x11_input_probe: Option<X11InputProbe>,
 }
 
@@ -312,6 +313,7 @@ impl WLCState {
             xwm: None,
             xdisplay: None,
             x11_windows: vec![],
+            focused_x11_window: None,
             x11_input_probe: None,
         }
     }
@@ -372,6 +374,19 @@ impl WLCState {
             && self.x11_windows.iter().any(|w| **w == *window)
         {
             eprintln!("WLC X11 untrack {}", self.describe_x11_window(window));
+        }
+        if self
+            .focused_x11_window
+            .as_ref()
+            .is_some_and(|focused| focused == window)
+        {
+            if debug_input_enabled() {
+                println!(
+                    "WLC input X11 focus cleared removed {}",
+                    self.describe_x11_window(window)
+                );
+            }
+            self.focused_x11_window = None;
         }
         self.x11_windows.retain(|w| **w != *window);
     }

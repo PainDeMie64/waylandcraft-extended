@@ -10,19 +10,15 @@ import dev.evvie.waylandcraft.WaylandCraft.KeyboardCaptureMode;
 import dev.evvie.waylandcraft.bridge.IconSurface;
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow.SurfaceGeometry;
 import dev.evvie.waylandcraft.bridge.WLCToplevel;
-import dev.evvie.waylandcraft.desktop.DesktopEntry;
 import dev.evvie.waylandcraft.render.RenderUtils;
 import dev.evvie.waylandcraft.render.RenderUtils.FitRect;
 import dev.evvie.waylandcraft.render.WindowFramebuffer;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.Style;
 import net.minecraft.resources.Identifier;
 
 public class WaylandHudRenderer {
@@ -52,52 +48,63 @@ public class WaylandHudRenderer {
 	
 	private void extractAppListRenderState(GuiGraphicsExtractor context, DeltaTracker deltaTracker) {
 		Font font = Minecraft.getInstance().font;
-		int yoff = 30;
-		int ystep = font.lineHeight + 2;
-		
-		if(WaylandCraft.instance.keyboardCaptureMode == KeyboardCaptureMode.CAPTURE) {
-			String text = "KEYBOARD CAPTURED [PRESS ALT+G]";
-			context.text(font, text, context.guiWidth() - font.width(text) - 10, yoff, Color.red.getRGB(), true);
-			yoff += ystep;
-		}
-		else if(WaylandCraft.instance.keyboardCaptureMode == KeyboardCaptureMode.HARD_CAPTURE) {
-			String text = "KEYBOARD CAPTURED [PRESS ALT+Q]";
-			context.text(font, text, context.guiWidth() - font.width(text) - 10, yoff, Color.red.getRGB(), true);
-			yoff += ystep;
-		}
-		
-		for(WLCToplevel toplevel : WaylandCraft.instance.bridge.getMappedToplevels()) {
-			String appID = toplevel.appID;
-			DesktopEntry entry = wlc.xdgManager.forAppId(appID);
-			
-			String name = "<unknown app>";
-			if(appID != null) name = appID;
-			if(entry != null && entry.name != null) name = entry.name;
-			
-			Style style = Style.EMPTY;
-			Color color = Color.white;
-			
-			if(!wlc.hasDisplayFor(toplevel)) {
-				color = Color.lightGray;
-			}
-			if(toplevel == wlc.bridge.getMostRecentFocus()) {
-				style = style.applyFormat(ChatFormatting.UNDERLINE);
-			}
-			
-			int x = context.guiWidth() - font.width(name) - 10;
-			context.text(font, Component.literal(name).withStyle(style), x, yoff, color.getRGB(), true);
-			
-			if(entry != null) {
-				Identifier icon = entry.getIcon();
-				int iconX = x - font.lineHeight - 2;
-				int iconY = yoff;
-				int iconSize = font.lineHeight;
-				if(icon != null) context.blit(icon, iconX, iconY, iconX + iconSize, iconY + iconSize, 0.0f, 1.0f, 0.0f, 1.0f);
-			}
-			
-			yoff += ystep;
-		}
+		StatusLine line = focusedStatusLine(font, context.guiWidth());
+		if(line == null) return;
+		renderStatusLine(context, font, line, context.guiWidth() - line.width - 10, 30);
 	}
+
+	private StatusLine focusedStatusLine(Font font, int maxWidth) {
+		if(wlc.bridge == null) return null;
+		WLCToplevel focused = wlc.bridge.getMostRecentFocus();
+		if(focused == null) return null;
+
+		KeyboardCaptureMode mode = WaylandCraft.instance.keyboardCaptureMode;
+		String title = focused == null || focused.title == null || focused.title.isBlank() ? "focused window" : focused.title;
+		String prefix;
+		String suffix;
+		int prefixColor;
+		int suffixColor;
+		if(mode == KeyboardCaptureMode.HARD_CAPTURE) {
+			prefix = "Mouse+keys -> ";
+			suffix = " (Alt+Q)";
+			prefixColor = Color.red.getRGB();
+			suffixColor = Color.red.getRGB();
+		}
+		else if(mode == KeyboardCaptureMode.CAPTURE) {
+			prefix = "Keys -> ";
+			suffix = " (Alt+G)";
+			prefixColor = Color.red.getRGB();
+			suffixColor = Color.red.getRGB();
+		}
+		else {
+			prefix = "Focus -> ";
+			suffix = "";
+			prefixColor = Color.lightGray.getRGB();
+			suffixColor = Color.lightGray.getRGB();
+		}
+		int available = Math.max(40, maxWidth - 20 - font.width(prefix) - font.width(suffix));
+		String fittedTitle = fitText(font, title, available);
+		return new StatusLine(prefix, fittedTitle, suffix, prefixColor, Color.white.getRGB(), suffixColor, font.width(prefix) + font.width(fittedTitle) + font.width(suffix));
+	}
+
+	private void renderStatusLine(GuiGraphicsExtractor context, Font font, StatusLine line, int x, int y) {
+		context.text(font, line.prefix, x, y, line.prefixColor, true);
+		x += font.width(line.prefix);
+		context.text(font, line.title, x, y, line.titleColor, true);
+		x += font.width(line.title);
+		if(!line.suffix.isEmpty()) context.text(font, line.suffix, x, y, line.suffixColor, true);
+	}
+
+	private String fitText(Font font, String text, int maxWidth) {
+		if(font.width(text) <= maxWidth) return text;
+		String ellipsis = "...";
+		while(text.length() > 1 && font.width(text + ellipsis) > maxWidth) {
+			text = text.substring(0, text.length() - 1);
+		}
+		return text + ellipsis;
+	}
+
+	private record StatusLine(String prefix, String title, String suffix, int prefixColor, int titleColor, int suffixColor, int width) {}
 	
 	private void extractPinnedToplevelRenderState(GuiGraphicsExtractor context, DeltaTracker deltaTracker) {
 		int guiScale = (int) Minecraft.getInstance().getWindow().getGuiScale();

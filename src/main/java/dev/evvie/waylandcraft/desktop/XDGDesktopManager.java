@@ -78,6 +78,20 @@ public class XDGDesktopManager {
 		for(DesktopEntry entry : systemEntries) {
 			if(entry.appId.equals(appId)) return entry;
 		}
+		DesktopEntry steamEntry = steamEntryForAppId(appId);
+		if(steamEntry != null) return steamEntry;
+		return null;
+	}
+
+	private @Nullable DesktopEntry steamEntryForAppId(String appId) {
+		String prefix = "steam_app_";
+		if(!appId.startsWith(prefix)) return null;
+		String steamId = appId.substring(prefix.length());
+		if(steamId.isBlank()) return null;
+		String runGameUri = "steam://rungameid/" + steamId;
+		for(DesktopEntry entry : systemEntries) {
+			if(entry.exec != null && entry.exec.contains(runGameUri)) return entry;
+		}
 		return null;
 	}
 	
