@@ -41,6 +41,7 @@ This fork focuses on running more Linux desktop software inside Minecraft, espec
 
 - Changes normal keyboard capture to `Alt+G`, with `Alt+G` also releasing capture.
 - Keeps `Alt+Q` as hard capture for applications that need relative mouse movement or stronger pointer capture.
+- Adds real Wayland client cursor surface support during hard capture, including cursor hotspots, client-hidden cursors, custom game cursors, and a built-in default cursor fallback.
 - Frees `Escape` so it can be sent to focused applications instead of always being reserved for leaving capture.
 - Fixes several X11 pointer focus, stacking, and grab-routing paths so clicks are delivered to the intended window.
 
@@ -50,6 +51,7 @@ This fork focuses on running more Linux desktop software inside Minecraft, espec
 - Fixes dmabuf texture lifetime handling for X11 windows, preventing stale or random Minecraft textures from appearing in app windows.
 - Fixes X11 focus/stacking behavior needed for Steam and Proton windows to receive input reliably.
 - Releases pointer capture when opening the window manager and refocuses pointer targets before routing clicks.
+- Fixes hard pointer capture cursor feedback by rendering actual client-provided cursor surfaces instead of a compositor-side placeholder.
 - Cleans up embedded app processes when Minecraft shuts down, reducing leftover Steam/Proton child processes after crashes or forced exits.
 - Adds X11 lifecycle diagnostics for hidden, unmapped, destroyed, or untracked X11 windows.
 
