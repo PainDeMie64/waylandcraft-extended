@@ -6,7 +6,7 @@ use crate::seat::WLCSeatState;
 use crate::x11_probe::X11InputProbe;
 use crate::xdg_spec::XDGSpecHelper;
 use smithay::{
-    backend::{allocator::dmabuf::Dmabuf, drm::DrmNode},
+    backend::allocator::dmabuf::Dmabuf,
     delegate_compositor, delegate_dmabuf, delegate_shm,
     delegate_single_pixel_buffer, delegate_viewporter, delegate_xdg_shell,
     delegate_xwayland_shell,
@@ -549,8 +549,10 @@ fn init_dmabuf(
     state: &mut DmabufState,
     egl: &EGLHelper,
 ) -> DmabufGlobal {
-    let render_node_path = egl.get_render_node();
-    let render_node = DrmNode::from_path(render_node_path).unwrap().dev_id();
+    let render_node = egl
+        .get_render_node()
+        .expect("Failed to get render node!")
+        .dev_id();
 
     let formats = egl.query_dmabuf_formats();
 

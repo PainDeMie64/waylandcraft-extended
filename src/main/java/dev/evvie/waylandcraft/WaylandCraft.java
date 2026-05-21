@@ -116,7 +116,8 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	private @Nullable WindowDisplay editedDisplay = null;
 	private @Nullable WindowDisplay activeChromeDisplay = null;
 	
-	public boolean playerUsingWindowItem = false;
+	private boolean playerUsingWindowItem = false;
+	private boolean playerWasUsingWindowItem = false;
 	
 	public @Nullable CursorShape cursorShape = null;
 	private int debugOutputWidth = -1;
@@ -143,9 +144,9 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		instance = this;
 		
-		keyOpenScreen = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.windowManager", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, KEYBIND_CATEGORY));
-		keyOpenAppLauncher = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.appLauncher", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, KEYBIND_CATEGORY));
-		keyCaptureKeyboard = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.captureKeyboard", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEYBIND_CATEGORY));
+		keyOpenScreen = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.windowManager", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, KEYBIND_CATEGORY));
+		keyOpenAppLauncher = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.appLauncher", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, KEYBIND_CATEGORY));
+		keyCaptureKeyboard = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.desktopPanel", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEYBIND_CATEGORY));
 		
 		LevelRenderEvents.COLLECT_SUBMITS.register(this::renderWorld);
 		LevelRenderEvents.END_EXTRACTION.register(this::updateWorld);
@@ -231,6 +232,9 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 				
 				if(toplevel != null) {
 					WindowDisplay display = getOrCreateDisplay(toplevel);
+					if(!playerWasUsingWindowItem) {
+						display.anchorDistance = 2.0;
+					}
 					display.anchorToCamera(camera);
 					if(desktopManager != null) desktopManager.placeOnCurrentWorkspace(toplevel, display);
 					WaylandCraft.instance.bridge.focusSurface(toplevel);
@@ -238,8 +242,13 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			}
 			else playerUsingWindowItem = false;
 		}
+		playerWasUsingWindowItem = playerUsingWindowItem;
 		
 		updateOutputSize(inWMScreen);
+	}
+
+	public void startUsingWindowItem() {
+		playerUsingWindowItem = true;
 	}
 	
 	public void enableKeyboardCapture(boolean hardCapture) {
@@ -848,7 +857,22 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	 * Returns true when the mouse scroll action has been consumed
 	 */
 	public boolean onScroll(long windowHandle, double scrollX, double scrollY) {
-		if(pointerGrabs.isExclusiveGrabActive()) return true;
+		if(playerUsingWindowItem) {
+			if(Minecraft.getInstance().player == null) return true;
+			WLCToplevel toplevel = WindowItem.getToplevel(Minecraft.getInstance().player.getUseItem());
+			if(toplevel != null) {
+				WindowDisplay display = getDisplay(toplevel);
+				if(display != null) {
+					display.adjustAnchorDistance(scrollY);
+					return true;
+				}
+			}
+		}
+
+		if(pointerGrabs.isExclusiveGrabActive()) {
+			pointerGrabs.onScroll(scrollX, scrollY);
+			return true;
+		}
 		
 		if(hoveredDisplay != null) {
 			if(hoveredDisplay.dist < 0) return true;

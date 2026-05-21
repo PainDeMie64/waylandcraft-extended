@@ -54,6 +54,7 @@ public class WindowDisplay {
 	
 	private int width;
 	private int height;
+	public double anchorDistance = 2.0;
 	private boolean customPresentationSize = false;
 	private int debugFramebufferWidth = Integer.MIN_VALUE;
 	private int debugFramebufferHeight = Integer.MIN_VALUE;
@@ -142,6 +143,10 @@ public class WindowDisplay {
 	public void clearPresentationSize() {
 		this.customPresentationSize = false;
 		updateGeometry();
+	}
+
+	public void adjustAnchorDistance(double delta) {
+		this.anchorDistance = Math.max(0.3, this.anchorDistance + delta * 0.1d);
 	}
 	
 	public void render(LevelRenderContext ctx) {
@@ -452,7 +457,7 @@ public class WindowDisplay {
 	}
 	
 	public void anchorToPosView(Vec3 pos, Vec3 look, Vec3 up) {
-		this.pivot = pos.add(look.scale(2));
+		this.pivot = pos.add(look.scale(anchorDistance));
 		this.rotate(look.reverse(), up.reverse());
 	}
 	

@@ -108,6 +108,15 @@ public class PointerGrabMap {
 			}
 		}
 	}
+
+	public void onScroll(double scrollX, double scrollY) {
+		if(exclusiveGrab == null) return;
+		try {
+			exclusiveGrab.onScroll(scrollX, scrollY);
+		} catch(GrabDroppedException e) {
+			exclusiveGrab = null;
+		}
+	}
 	
 	public void release(int button) {
 		if(exclusiveGrab != null && exclusiveGrab.button == button) {

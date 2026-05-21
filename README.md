@@ -65,6 +65,10 @@ __GL_THREADED_OPTIMIZATIONS=0
 
 This avoids known EGL/context issues seen while testing WaylandCraft Extended. In Modrinth App, add it under the instance settings' custom environment variables.
 
+## App Discovery
+
+If the app launcher only shows Minecraft or the launcher itself, use a native system package for your Minecraft launcher rather than a sandboxed package such as Flatpak. Sandboxed launchers can hide the desktop application list from WaylandCraft.
+
 ## Debugging Flags
 
 The fork includes opt-in diagnostics for development and bug reports:

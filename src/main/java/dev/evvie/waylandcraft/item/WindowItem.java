@@ -95,7 +95,7 @@ public class WindowItem extends Item {
 		if(!level.isClientSide()) return;
 		if(livingEntity != Minecraft.getInstance().player) return;
 
-		WaylandCraft.instance.playerUsingWindowItem = true;
+		WaylandCraft.instance.startUsingWindowItem();
 	}
 
 	public static ItemStack createItem(WLCToplevel toplevel) {

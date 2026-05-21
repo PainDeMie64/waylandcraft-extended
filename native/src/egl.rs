@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
-use smithay::backend::allocator::{
-    Buffer, Format, Fourcc, Modifier, dmabuf::Dmabuf,
+use smithay::backend::{
+    allocator::{Buffer, Format, Fourcc, Modifier, dmabuf::Dmabuf},
+    drm::{DrmNode, NodeType},
 };
 use std::ffi::{CStr, CString};
 use std::os::fd::AsRawFd;
@@ -50,6 +51,7 @@ pub const EGL_DMA_BUF_PLANE3_MODIFIER_LO_EXT: EGLAttrib = 0x3449;
 pub const EGL_DMA_BUF_PLANE3_MODIFIER_HI_EXT: EGLAttrib = 0x344A;
 
 pub const EGL_DRM_RENDER_NODE_FILE_EXT: EGLint = 0x3377;
+pub const EGL_DRM_DEVICE_FILE_EXT: EGLint = 0x3233;
 
 type ProcAddrFn = extern "C" fn(*const libc::c_char) -> extern "C" fn();
 
@@ -122,7 +124,7 @@ impl EGLHelper {
         }
     }
 
-    pub fn get_render_node(&self) -> &'static str {
+    pub fn get_render_node(&self) -> Result<DrmNode, ()> {
         let mut dev_ret: EGLAttrib = 0;
 
         (self.eglQueryDisplayAttribEXT)(
@@ -133,10 +135,34 @@ impl EGLHelper {
 
         let dev: EGLDeviceEXT = (dev_ret as usize) as EGLDeviceEXT;
 
-        let name_ptr =
+        let path_ptr =
             (self.eglQueryDeviceStringEXT)(dev, EGL_DRM_RENDER_NODE_FILE_EXT);
 
-        unsafe { CStr::from_ptr(name_ptr).to_str().unwrap() }
+        if !path_ptr.is_null() {
+            let path = unsafe { CStr::from_ptr(path_ptr).to_str().unwrap() };
+            return DrmNode::from_path(path).map_err(|_| ());
+        }
+
+        eprintln!("Querying EGL_DRM_RENDER_NODE_FILE_EXT returned null!");
+
+        let drm_path_ptr =
+            (self.eglQueryDeviceStringEXT)(dev, EGL_DRM_DEVICE_FILE_EXT);
+
+        if drm_path_ptr.is_null() {
+            eprintln!("Querying EGL_DRM_DEVICE_FILE_EXT returned null!");
+            return Err(());
+        }
+
+        let drm_path =
+            unsafe { CStr::from_ptr(drm_path_ptr).to_str().unwrap() };
+        let drm_device = DrmNode::from_path(drm_path).map_err(|_| ())?;
+
+        if let Some(render_node) = drm_device.node_with_type(NodeType::Render) {
+            return render_node.map_err(|_| ());
+        }
+
+        eprintln!("Failed to get render node from drm device!");
+        Ok(drm_device)
     }
 
     pub fn dmabuf_to_image(&self, dmabuf: &Dmabuf) -> EGLImage {

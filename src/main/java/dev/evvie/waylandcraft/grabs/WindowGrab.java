@@ -10,6 +10,7 @@ public class WindowGrab extends PointerGrab {
 	public WindowGrab(WindowDisplay window, int button) {
 		super(button);
 		this.window = window;
+		window.anchorDistance = 2.0;
 	}
 	
 	private void checkValid() throws GrabDroppedException {
@@ -35,6 +36,13 @@ public class WindowGrab extends PointerGrab {
 		window.anchorToPosView(pos, view, up);
 		wlc.snapDisplayPlacement(window);
 		wlc.snapDisplayOrientation(window);
+	}
+
+	@Override
+	public void onScroll(double scrollX, double scrollY) throws GrabDroppedException {
+		this.checkValid();
+		window.adjustAnchorDistance(scrollY);
+		if(wlc.desktopManager != null) wlc.desktopManager.markDirty();
 	}
 	
 }

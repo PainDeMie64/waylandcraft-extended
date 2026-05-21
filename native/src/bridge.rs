@@ -14,8 +14,8 @@ use jni::{
     objects::{JClass, JObject, JString, JValue},
     signature::{Primitive, ReturnType},
     sys::{
-        JNI_TRUE, jarray, jboolean, jbyte, jdouble, jint, jlong, jobject,
-        jintArray, jsize, jstring, jvalue,
+        JNI_TRUE, jarray, jboolean, jbyte, jdouble, jint, jintArray, jlong,
+        jobject, jsize, jstring, jvalue,
     },
 };
 use smithay::{
@@ -57,9 +57,7 @@ use smithay::{
 use std::ops::DerefMut;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
-use x11rb::protocol::xproto::{
-    AtomEnum as X11AtomEnum, ConnectionExt as _,
-};
+use x11rb::protocol::xproto::{AtomEnum as X11AtomEnum, ConnectionExt as _};
 
 #[allow(clippy::vec_box)]
 pub(crate) struct BridgeState {
@@ -1859,8 +1857,10 @@ fn read_net_wm_icon(display: u32, window_ids: &[u32]) -> Option<Vec<jint>> {
             let largest_side = width.max(height) as i64;
             let area = (width as i64) * (height as i64);
             let target_delta = (largest_side - 128).abs();
-            let oversize_penalty = if largest_side > 256 { largest_side } else { 0 };
-            let score = target_delta * 1_000_000 + oversize_penalty * 10_000 - area;
+            let oversize_penalty =
+                if largest_side > 256 { largest_side } else { 0 };
+            let score =
+                target_delta * 1_000_000 + oversize_penalty * 10_000 - area;
             if best_icon
                 .as_ref()
                 .map(|(_, _, _, best_score)| score < *best_score)

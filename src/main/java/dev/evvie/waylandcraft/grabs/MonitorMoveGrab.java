@@ -12,6 +12,7 @@ public class MonitorMoveGrab extends PointerGrab {
 		super(button);
 		this.window = window;
 		this.grabbedLocal = grabbedLocal;
+		window.anchorDistance = 2.0;
 	}
 
 	private void checkValid() throws GrabDroppedException {
@@ -33,7 +34,7 @@ public class MonitorMoveGrab extends PointerGrab {
 		checkValid();
 
 		window.rotate(view.reverse(), up.reverse());
-		Vec3 target = pos.add(view.scale(2));
+		Vec3 target = pos.add(view.scale(window.anchorDistance));
 		double centerX = window.presentationWidth() / 2.0;
 		double centerY = window.presentationHeight() / 2.0;
 		window.pivot = target
@@ -41,6 +42,13 @@ public class MonitorMoveGrab extends PointerGrab {
 				.add(window.localY().scale(centerY - grabbedLocal.y));
 		wlc.snapDisplayPlacement(window);
 		wlc.snapDisplayOrientation(window);
+		if(wlc.desktopManager != null) wlc.desktopManager.markDirty();
+	}
+
+	@Override
+	public void onScroll(double scrollX, double scrollY) throws GrabDroppedException {
+		checkValid();
+		window.adjustAnchorDistance(scrollY);
 		if(wlc.desktopManager != null) wlc.desktopManager.markDirty();
 	}
 
