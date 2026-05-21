@@ -178,6 +178,10 @@ public class DesktopManager {
 				if(!wlc.hasDisplayFor(toplevel)) {
 					notify("window", "New window", windowTitle(toplevel));
 				}
+				if(WaylandCraft.DEBUG_WINDOWS) {
+					WaylandCraft.LOGGER.info("WLC desktop window-seen window={} title={} appID={} stableId={} workspace={} hasDisplay={}",
+							toplevel.getHandle(), toplevel.title, toplevel.appID, stableId(toplevel), currentWorkspace(), wlc.hasDisplayFor(toplevel));
+				}
 			}
 
 			String id = stableId(toplevel);
@@ -188,6 +192,10 @@ public class DesktopManager {
 				state.workspace = currentWorkspace();
 				state.lifecycle = wlc.hasDisplayFor(toplevel) ? "placed" : "unplaced";
 				layout.monitors.put(id, state);
+				if(WaylandCraft.DEBUG_WINDOWS) {
+					WaylandCraft.LOGGER.info("WLC desktop state-created stableId={} window={} title={} appID={} workspace={} lifecycle={}",
+							id, toplevel.getHandle(), toplevel.title, toplevel.appID, state.workspace, state.lifecycle);
+				}
 			}
 			state.appId = safe(toplevel.appID);
 			state.title = safe(toplevel.title);
@@ -222,6 +230,10 @@ public class DesktopManager {
 			if(display == null) {
 				display = wlc.getOrCreateDisplay(toplevel);
 				applyMonitorState(display, state);
+				if(WaylandCraft.DEBUG_WINDOWS) {
+					WaylandCraft.LOGGER.info("WLC desktop restore-display stableId={} window={} title={} appID={} workspace={} lifecycle={}",
+							state.stableId, toplevel.getHandle(), toplevel.title, toplevel.appID, state.workspace, state.lifecycle);
+				}
 			}
 		}
 	}
@@ -240,6 +252,10 @@ public class DesktopManager {
 			if(state.showOnAllWorkspaces) return false;
 			if(state.workspace == currentWorkspace()) return false;
 			state.lifecycle = "placed";
+			if(WaylandCraft.DEBUG_WINDOWS) {
+				WaylandCraft.LOGGER.info("WLC desktop hide-display stableId={} window={} title={} appID={} windowWorkspace={} currentWorkspace={}",
+						state.stableId, toplevel.getHandle(), toplevel.title, toplevel.appID, state.workspace, currentWorkspace());
+			}
 			return true;
 		});
 	}
@@ -252,6 +268,10 @@ public class DesktopManager {
 		});
 		state.workspace = workspace;
 		state.lifecycle = wlc.hasDisplayFor(toplevel) ? "placed" : "unplaced";
+		if(WaylandCraft.DEBUG_WINDOWS) {
+			WaylandCraft.LOGGER.info("WLC desktop assign-workspace stableId={} window={} title={} appID={} workspace={} lifecycle={}",
+					state.stableId, toplevel.getHandle(), toplevel.title, toplevel.appID, workspace, state.lifecycle);
+		}
 		for(DesktopWorkspace existing : layout.workspaces) {
 			existing.windowIds.remove(state.stableId);
 		}

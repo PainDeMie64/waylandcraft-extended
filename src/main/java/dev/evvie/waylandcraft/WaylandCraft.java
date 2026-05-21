@@ -69,6 +69,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	public static final String MOD_ID = "waylandcraft";
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 	public static final boolean DEBUG_WINDOWS = envFlagEnabled("WAYLANDCRAFT_DEBUG_WINDOWS");
+	public static final boolean DEBUG_INPUT = envFlagEnabled("WAYLANDCRAFT_DEBUG_INPUT");
 	public static final boolean DEBUG_OVERLAY = envFlagEnabled("WAYLANDCRAFT_DEBUG_OVERLAY");
 	public static final boolean DEBUG_TEXTURES = envFlagEnabled("WAYLANDCRAFT_DEBUG_TEXTURES");
 	private static final KeyMapping.Category KEYBIND_CATEGORY = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "keys"));
@@ -136,8 +137,8 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		LOGGER.info("Initializing WaylandCraft");
-		if(DEBUG_WINDOWS || DEBUG_OVERLAY || DEBUG_TEXTURES) {
-			LOGGER.info("WLC debug flags windows={} overlay={} textures={}", DEBUG_WINDOWS, DEBUG_OVERLAY, DEBUG_TEXTURES);
+		if(DEBUG_WINDOWS || DEBUG_INPUT || DEBUG_OVERLAY || DEBUG_TEXTURES) {
+			LOGGER.info("WLC debug flags windows={} input={} overlay={} textures={}", DEBUG_WINDOWS, DEBUG_INPUT, DEBUG_OVERLAY, DEBUG_TEXTURES);
 		}
 		
 		instance = this;
@@ -246,6 +247,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			if(keyboardCaptureMode == KeyboardCaptureMode.HARD_CAPTURE) return;
 			if(!enableHardPointerCapture("hard-capture-toggle")) return;
 			keyboardCaptureMode = KeyboardCaptureMode.HARD_CAPTURE;
+			if(DEBUG_INPUT) LOGGER.info("WLC input java capture-start mode=hard target={}", describeWindow(bridge.getMostRecentFocus()));
 			bridge.activateKeyboard();
 			Minecraft.getInstance().mouseHandler.grabMouse();
 			return;
@@ -254,6 +256,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		if(keyboardCaptureMode != KeyboardCaptureMode.NONE) return;
 
 		keyboardCaptureMode = KeyboardCaptureMode.CAPTURE;
+		if(DEBUG_INPUT) LOGGER.info("WLC input java capture-start mode=keys target={}", describeWindow(bridge.getMostRecentFocus()));
 		bridge.activateKeyboard();
 	}
 
@@ -294,6 +297,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		}
 		
 		keyboardCaptureMode = KeyboardCaptureMode.NONE;
+		if(DEBUG_INPUT) LOGGER.info("WLC input java capture-end reason={} target={}", reason, describeWindow(bridge.getMostRecentFocus()));
 		bridge.deactivateKeyboard();
 		disablePointerCapture(reason);
 	}
@@ -872,6 +876,13 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		boolean release = action == GLFW.GLFW_RELEASE;
 		boolean altKey = isAltKey(key);
 		boolean altDown = altKey || (modifiers & GLFW.GLFW_MOD_ALT) != 0;
+		if(DEBUG_INPUT && (press || release)) {
+			LOGGER.info("WLC input java key-event key={} scancode={} action={} modifiers={} mode={} screen={} focus={} pointerCapture={}",
+					key, scancode, action, modifiers, keyboardCaptureMode,
+					Minecraft.getInstance().screen == null ? "none" : Minecraft.getInstance().screen.getClass().getSimpleName(),
+					describeWindow(bridge.getMostRecentFocus()),
+					pointerCapture == null ? "none" : describeSurfaceOwner(pointerCapture.surface));
+		}
 
 		if(press && altKey) {
 			altChordActive = true;
@@ -887,6 +898,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 				if(keyboardCaptureMode == KeyboardCaptureMode.NONE) enableKeyboardCapture(false);
 				else disableKeyboardCapture("alt-g-toggle");
 			}
+			if(DEBUG_INPUT && press) LOGGER.info("WLC input java shortcut alt-g mode={}", keyboardCaptureMode);
 			return true;
 		}
 
@@ -909,6 +921,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			else {
 				disableKeyboardCapture("alt-q-toggle");
 			}
+			if(DEBUG_INPUT) LOGGER.info("WLC input java shortcut alt-q mode={}", keyboardCaptureMode);
 			return true;
 		}
 
@@ -931,12 +944,17 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			return true;
 		}
 
-		if(keyboardCaptureMode == KeyboardCaptureMode.NONE) return false;
+		if(keyboardCaptureMode == KeyboardCaptureMode.NONE) {
+			if(DEBUG_INPUT && (press || release)) LOGGER.info("WLC input java key-pass-through key={} scancode={} action={} reason=no-capture", key, scancode, action);
+			return false;
+		}
 		
 		if(action == GLFW.GLFW_PRESS) {
+			if(DEBUG_INPUT) LOGGER.info("WLC input java key-forward state=press scancode={} mode={} target={}", scancode, keyboardCaptureMode, describeWindow(bridge.getMostRecentFocus()));
 			bridge.pressKey(scancode);
 		}
 		else if(action == GLFW.GLFW_RELEASE) {
+			if(DEBUG_INPUT) LOGGER.info("WLC input java key-forward state=release scancode={} mode={} target={}", scancode, keyboardCaptureMode, describeWindow(bridge.getMostRecentFocus()));
 			bridge.releaseKey(scancode);
 		}
 		
@@ -989,6 +1007,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	}
 
 	private String describeWindow(WLCAbstractWindow window) {
+		if(window == null) return "none";
 		if(window instanceof WLCToplevel toplevel) {
 			return "window=" + toplevel.getHandle() + " title=" + toplevel.title + " appID=" + toplevel.appID + " fullscreen=" + toplevel.fullscreen;
 		}

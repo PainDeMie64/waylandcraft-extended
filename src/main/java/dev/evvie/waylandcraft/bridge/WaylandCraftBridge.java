@@ -99,7 +99,7 @@ public class WaylandCraftBridge {
 		}
 
 		long handle = init(GLFW.Functions.GetProcAddress, eglDisplay);
-		setNativeDebugInput(WaylandCraft.DEBUG_WINDOWS);
+		setNativeDebugInput(WaylandCraft.DEBUG_WINDOWS || WaylandCraft.DEBUG_INPUT);
 		WaylandCraftBridge bridge = new WaylandCraftBridge(handle);
 		Runtime.getRuntime().addShutdownHook(new Thread(
 				bridge::cleanupLaunchedApps,
@@ -728,6 +728,7 @@ public class WaylandCraftBridge {
 
 	public void focusSurface(@Nullable WLCToplevel toplevel) {
 		if(toplevel instanceof WLCX11Window) {
+			if(WaylandCraft.DEBUG_INPUT) WaylandCraft.LOGGER.info("WLC input java focus x11 target={}", debugDescribe(toplevel));
 			x11WindowFocus(instance, toplevel.getHandle());
 
 			focusOrder.remove(toplevel);
@@ -739,6 +740,7 @@ public class WaylandCraftBridge {
 		if(toplevel != null) {
 			handle = toplevel.getHandle();
 		}
+		if(WaylandCraft.DEBUG_INPUT) WaylandCraft.LOGGER.info("WLC input java focus wayland target={}", debugDescribe(toplevel));
 
 		keyboardFocus(instance, handle);
 
@@ -750,10 +752,12 @@ public class WaylandCraftBridge {
 	}
 
 	public void activateKeyboard() {
+		if(WaylandCraft.DEBUG_INPUT) WaylandCraft.LOGGER.info("WLC input java keyboard-activate focus={}", debugDescribe(getMostRecentFocus()));
 		keyboardActivate(instance);
 	}
 
 	public void deactivateKeyboard() {
+		if(WaylandCraft.DEBUG_INPUT) WaylandCraft.LOGGER.info("WLC input java keyboard-deactivate focus={}", debugDescribe(getMostRecentFocus()));
 		keyboardDeactivate(instance);
 	}
 
@@ -777,15 +781,23 @@ public class WaylandCraftBridge {
 	}
 
 	public void pressKey(int scancode) {
+		if(WaylandCraft.DEBUG_INPUT) WaylandCraft.LOGGER.info("WLC input java bridge-key state=press scancode={} focus={}", scancode, debugDescribe(getMostRecentFocus()));
 		keyboardInput(instance, scancode, 1);
 	}
 
 	public void releaseKey(int scancode) {
+		if(WaylandCraft.DEBUG_INPUT) WaylandCraft.LOGGER.info("WLC input java bridge-key state=release scancode={} focus={}", scancode, debugDescribe(getMostRecentFocus()));
 		keyboardInput(instance, scancode, 0);
 	}
 
 	public void internalKeyUpdate(int scancode, boolean pressed) {
+		if(WaylandCraft.DEBUG_INPUT) WaylandCraft.LOGGER.info("WLC input java glfw-key state={} scancode={}", pressed ? "press" : "release", scancode);
 		keyboardUpdate(instance, scancode, pressed);
+	}
+
+	private String debugDescribe(@Nullable WLCToplevel toplevel) {
+		if(toplevel == null) return "none";
+		return "window=" + toplevel.getHandle() + " title=" + toplevel.title + " appID=" + toplevel.appID + " fullscreen=" + toplevel.fullscreen + " surface=" + (toplevel.getSurfaceTree() == null ? 0 : toplevel.getSurfaceTree().getDebugHandle());
 	}
 
 	public void resizeToplevelInteractive(WLCToplevel toplevel, int width, int height) {
