@@ -63,19 +63,19 @@ public class WaylandHudRenderer {
 		String prefix;
 		String suffix;
 		int prefixColor;
-		int suffixColor;
-		if(mode == KeyboardCaptureMode.HARD_CAPTURE) {
-			prefix = "Mouse+keys -> ";
-			suffix = " (Alt+Q)";
-			prefixColor = Color.red.getRGB();
-			suffixColor = Color.red.getRGB();
-		}
-		else if(mode == KeyboardCaptureMode.CAPTURE) {
-			prefix = "Keys -> ";
-			suffix = " (Alt+G)";
-			prefixColor = Color.red.getRGB();
-			suffixColor = Color.red.getRGB();
-		}
+			int suffixColor;
+			if(mode == KeyboardCaptureMode.HARD_CAPTURE) {
+				prefix = "Mouse+keys -> ";
+				suffix = shortcutSuffix(wlc.keyToggleHardCapture);
+				prefixColor = Color.red.getRGB();
+				suffixColor = Color.red.getRGB();
+			}
+			else if(mode == KeyboardCaptureMode.CAPTURE) {
+				prefix = "Keys -> ";
+				suffix = shortcutSuffix(wlc.keyToggleKeyboardCapture);
+				prefixColor = Color.red.getRGB();
+				suffixColor = Color.red.getRGB();
+			}
 		else {
 			prefix = "Focus -> ";
 			suffix = "";
@@ -102,6 +102,11 @@ public class WaylandHudRenderer {
 			text = text.substring(0, text.length() - 1);
 		}
 		return text + ellipsis;
+	}
+
+	private String shortcutSuffix(net.minecraft.client.KeyMapping mapping) {
+		if(mapping == null || mapping.isUnbound()) return "";
+		return " (" + mapping.getTranslatedKeyMessage().getString() + ")";
 	}
 
 	private record StatusLine(String prefix, String title, String suffix, int prefixColor, int titleColor, int suffixColor, int width) {}

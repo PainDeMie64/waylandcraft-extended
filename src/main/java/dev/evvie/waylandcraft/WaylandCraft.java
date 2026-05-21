@@ -93,7 +93,14 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	
 	public KeyMapping keyOpenScreen;
 	public KeyMapping keyOpenAppLauncher;
-	public KeyMapping keyCaptureKeyboard;
+	public KeyMapping keyPlaceDesktopPanel;
+	public KeyMapping keyToggleKeyboardCapture;
+	public KeyMapping keyToggleHardCapture;
+	public KeyMapping keyToggleMonitorRotation;
+	public KeyMapping keyToggleMonitorSnapping;
+	public KeyMapping keyRotationAxisX;
+	public KeyMapping keyRotationAxisY;
+	public KeyMapping keyRotationAxisZ;
 	
 	public WindowInHandRenderer windowInHandRenderer = new WindowInHandRenderer();
 	public WindowInItemFrameRenderer windowInItemFrameRenderer = new WindowInItemFrameRenderer();
@@ -110,8 +117,6 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	public PointerCapture pointerCapture = null;
 	public PanelHit hoveredPanel = null;
 	public boolean snapMonitorPlacement = false;
-	private boolean altChordActive = false;
-	private boolean altChordClean = false;
 	private MonitorRotationGrab rotationGrab = null;
 	private @Nullable WindowDisplay editedDisplay = null;
 	private @Nullable WindowDisplay activeChromeDisplay = null;
@@ -146,7 +151,14 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		
 		keyOpenScreen = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.windowManager", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, KEYBIND_CATEGORY));
 		keyOpenAppLauncher = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.appLauncher", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, KEYBIND_CATEGORY));
-		keyCaptureKeyboard = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.desktopPanel", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEYBIND_CATEGORY));
+		keyPlaceDesktopPanel = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.desktopPanel", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEYBIND_CATEGORY));
+		keyToggleKeyboardCapture = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.keyboardCapture", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEYBIND_CATEGORY));
+		keyToggleHardCapture = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.hardCapture", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEYBIND_CATEGORY));
+		keyToggleMonitorRotation = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.monitorRotation", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEYBIND_CATEGORY));
+		keyToggleMonitorSnapping = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.monitorSnapping", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEYBIND_CATEGORY));
+		keyRotationAxisX = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.rotationAxisX", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_X, KEYBIND_CATEGORY));
+		keyRotationAxisY = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.rotationAxisY", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_Y, KEYBIND_CATEGORY));
+		keyRotationAxisZ = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.rotationAxisZ", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_Z, KEYBIND_CATEGORY));
 		
 		LevelRenderEvents.COLLECT_SUBMITS.register(this::renderWorld);
 		LevelRenderEvents.END_EXTRACTION.register(this::updateWorld);
@@ -334,7 +346,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			return;
 		}
 
-		if(desktopManager != null && keyCaptureKeyboard.consumeClick()) {
+		if(desktopManager != null && keyPlaceDesktopPanel.consumeClick()) {
 			desktopManager.placePanelInFrontOfPlayer();
 			return;
 		}
@@ -895,75 +907,47 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	 * is also the correct matching Wayland scancode for the default XKBConfig.
 	 * For X11 and Wayland hosts, this is a huge hack but should mostly work for now
 	 */
-	public boolean onKeyPress(long windowHandle, int key, int scancode, int action, int modifiers) {
+	public boolean onKeyPress(long windowHandle, int key, int scancode, int action, int modifiers, net.minecraft.client.input.KeyEvent event) {
 		boolean press = action == GLFW.GLFW_PRESS;
 		boolean release = action == GLFW.GLFW_RELEASE;
-		boolean altKey = isAltKey(key);
-		boolean altDown = altKey || (modifiers & GLFW.GLFW_MOD_ALT) != 0;
 		if(DEBUG_INPUT && (press || release)) {
 			LOGGER.info("WLC input java key-event key={} scancode={} action={} modifiers={} mode={} screen={} focus={} pointerCapture={}",
 					key, scancode, action, modifiers, keyboardCaptureMode,
 					Minecraft.getInstance().screen == null ? "none" : Minecraft.getInstance().screen.getClass().getSimpleName(),
 					describeWindow(bridge.getMostRecentFocus()),
-					pointerCapture == null ? "none" : describeSurfaceOwner(pointerCapture.surface));
+				pointerCapture == null ? "none" : describeSurfaceOwner(pointerCapture.surface));
 		}
 
-		if(press && altKey) {
-			altChordActive = true;
-			altChordClean = true;
-			return true;
-		}
-		if(press && altChordActive && !altKey) {
-			altChordClean = false;
-		}
-
-		if(altDown && key == GLFW.GLFW_KEY_G) {
-			if(press) {
-				if(keyboardCaptureMode == KeyboardCaptureMode.NONE) enableKeyboardCapture(false);
-				else disableKeyboardCapture("alt-g-toggle");
-			}
-			if(DEBUG_INPUT && press) LOGGER.info("WLC input java shortcut alt-g mode={}", keyboardCaptureMode);
+		if(matchesKey(keyToggleKeyboardCapture, event)) {
+			if(press) toggleKeyboardCapture();
 			return true;
 		}
 
-		if(altDown && key == GLFW.GLFW_KEY_R) {
+		if(matchesKey(keyToggleHardCapture, event)) {
+			if(press) toggleHardCapture();
+			return true;
+		}
+
+		if(matchesKey(keyToggleMonitorRotation, event)) {
 			if(press) toggleRotationMode();
 			return true;
 		}
 
-		if(altDown && key == GLFW.GLFW_KEY_P) {
-			if(press && desktopManager != null) desktopManager.placePanelInFrontOfPlayer();
+		if(matchesKey(keyToggleMonitorSnapping, event)) {
+			if(press) toggleMonitorSnapping();
 			return true;
 		}
 
-		if(altDown && key == GLFW.GLFW_KEY_Q) {
-			if(!press) return true;
-
-			if(keyboardCaptureMode != KeyboardCaptureMode.HARD_CAPTURE) {
-				enableKeyboardCapture(true);
-			}
-			else {
-				disableKeyboardCapture("alt-q-toggle");
-			}
-			if(DEBUG_INPUT) LOGGER.info("WLC input java shortcut alt-q mode={}", keyboardCaptureMode);
-			return true;
-		}
-
-		if(release && altKey) {
-			if(altChordActive && altChordClean) {
-				snapMonitorPlacement = !snapMonitorPlacement;
-				if(DEBUG_WINDOWS) LOGGER.info("WLC monitor snapping {}", snapMonitorPlacement ? "enabled" : "disabled");
-			}
-			altChordActive = false;
-			altChordClean = false;
+		if(desktopManager != null && matchesKey(keyPlaceDesktopPanel, event)) {
+			if(press) desktopManager.placePanelInFrontOfPlayer();
 			return true;
 		}
 
 		if(rotationGrab != null) {
 			if(press) {
-				if(key == GLFW.GLFW_KEY_X) rotationGrab.setAxis(rotationGrab.axis() == Axis.X ? Axis.NONE : Axis.X);
-				else if(key == GLFW.GLFW_KEY_Y) rotationGrab.setAxis(rotationGrab.axis() == Axis.Y ? Axis.NONE : Axis.Y);
-				else if(key == GLFW.GLFW_KEY_Z) rotationGrab.setAxis(rotationGrab.axis() == Axis.Z ? Axis.NONE : Axis.Z);
+				if(matchesKey(keyRotationAxisX, event)) rotationGrab.setAxis(rotationGrab.axis() == Axis.X ? Axis.NONE : Axis.X);
+				else if(matchesKey(keyRotationAxisY, event)) rotationGrab.setAxis(rotationGrab.axis() == Axis.Y ? Axis.NONE : Axis.Y);
+				else if(matchesKey(keyRotationAxisZ, event)) rotationGrab.setAxis(rotationGrab.axis() == Axis.Z ? Axis.NONE : Axis.Z);
 			}
 			return true;
 		}
@@ -985,8 +969,27 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		return true;
 	}
 
-	private boolean isAltKey(int key) {
-		return key == GLFW.GLFW_KEY_LEFT_ALT || key == GLFW.GLFW_KEY_RIGHT_ALT;
+	private boolean matchesKey(KeyMapping mapping, net.minecraft.client.input.KeyEvent event) {
+		return mapping != null && !mapping.isUnbound() && mapping.matches(event);
+	}
+
+	private void toggleKeyboardCapture() {
+		if(keyboardCaptureMode == KeyboardCaptureMode.NONE) enableKeyboardCapture(false);
+		else disableKeyboardCapture("keyboard-capture-toggle");
+	}
+
+	private void toggleHardCapture() {
+		if(keyboardCaptureMode != KeyboardCaptureMode.HARD_CAPTURE) {
+			enableKeyboardCapture(true);
+		}
+		else {
+			disableKeyboardCapture("hard-capture-toggle");
+		}
+	}
+
+	private void toggleMonitorSnapping() {
+		snapMonitorPlacement = !snapMonitorPlacement;
+		if(DEBUG_WINDOWS) LOGGER.info("WLC monitor snapping {}", snapMonitorPlacement ? "enabled" : "disabled");
 	}
 
 	private void toggleRotationMode() {

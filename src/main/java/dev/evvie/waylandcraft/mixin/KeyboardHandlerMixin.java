@@ -21,7 +21,7 @@ public class KeyboardHandlerMixin {
 		if(Minecraft.getInstance().level == null) return;
 		if(Minecraft.getInstance().screen != null) return;
 		
-		if(WaylandCraft.instance.onKeyPress(windowHandle, event.key(), scancode, action, event.modifiers())) info.cancel();
+		if(WaylandCraft.instance.onKeyPress(windowHandle, event.key(), scancode, action, event.modifiers(), event)) info.cancel();
 	}
 	
 	@Inject(method = "keyPress", at = @At("HEAD"), cancellable = false)

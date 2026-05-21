@@ -2,5 +2,12 @@
 	"key.category.waylandcraft.keys": "WaylandCraft Extended",
 	"waylandcraft.key.appLauncher": "App Launcher",
 	"waylandcraft.key.windowManager": "Window Manager",
-	"waylandcraft.key.desktopPanel": "Place Desktop Panel"
+	"waylandcraft.key.desktopPanel": "Place Desktop Panel",
+	"waylandcraft.key.keyboardCapture": "Toggle Keyboard Capture",
+	"waylandcraft.key.hardCapture": "Toggle Mouse and Keyboard Capture",
+	"waylandcraft.key.monitorRotation": "Toggle Monitor Rotation",
+	"waylandcraft.key.monitorSnapping": "Toggle Monitor Snapping",
+	"waylandcraft.key.rotationAxisX": "Rotation Axis X",
+	"waylandcraft.key.rotationAxisY": "Rotation Axis Y",
+	"waylandcraft.key.rotationAxisZ": "Rotation Axis Z"
 }

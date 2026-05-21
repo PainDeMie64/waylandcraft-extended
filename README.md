@@ -31,16 +31,16 @@ It expands the original in-game Wayland compositor with Xwayland support, Steam 
 
 ### Placement, snapping, and rotation
 
-- Adds an Alt-only snapping toggle for monitor placement.
+- Adds a configurable snapping toggle for monitor placement.
 - Snapping uses whole Minecraft block coordinates and 5 degree orientations.
-- Adds monitor rotation mode with `Alt+R`.
+- Adds configurable monitor rotation mode.
 - While rotating, `X`, `Y`, and `Z` constrain rotation to one axis.
 - Keeps existing grab behavior for moving windows from the window manager.
 
 ### Keyboard and pointer input
 
-- Changes normal keyboard capture to `Alt+G`, with `Alt+G` also releasing capture.
-- Keeps `Alt+Q` as hard capture for applications that need relative mouse movement or stronger pointer capture.
+- Adds configurable normal keyboard capture, with the same key also releasing capture.
+- Adds configurable hard capture for applications that need relative mouse movement or stronger pointer capture.
 - Adds real Wayland client cursor surface support during hard capture, including cursor hotspots, client-hidden cursors, custom game cursors, and a built-in default cursor fallback.
 - Frees `Escape` so it can be sent to focused applications instead of always being reserved for leaving capture.
 - Fixes several X11 pointer focus, stacking, and grab-routing paths so clicks are delivered to the intended window.
@@ -92,14 +92,16 @@ Use upstream WaylandCraft documentation for:
 
 Start here: [EVV1E/waylandcraft](https://github.com/EVV1E/waylandcraft)
 
-Fork-specific defaults to remember:
+Fork-specific controls are configurable in Minecraft's Controls menu under `WaylandCraft Extended`:
 
 - `V`: app launcher
 - `B`: window manager
-- `Alt+G`: toggle normal keyboard capture
-- `Alt+Q`: toggle hard keyboard/pointer capture
-- `Alt+R`: toggle monitor rotation mode
-- Alt press/release by itself: toggle monitor snapping
+- toggle normal keyboard capture
+- toggle hard keyboard/pointer capture
+- toggle monitor rotation mode
+- place the desktop panel
+- toggle monitor snapping
+- rotation axis controls while monitor rotation is active
 
 ## Status
 

@@ -49,7 +49,6 @@ public class WindowManagerScreen extends Screen {
 	private Button hideButton;
 	private Button pinButton;
 	private Button itemButton;
-	private Button helpButton;
 	
 	private boolean resizeMode = false;
 	private WLCToplevel resizeToplevel = null;
@@ -147,21 +146,11 @@ public class WindowManagerScreen extends Screen {
 		itemButton.setTooltipDelay(Duration.ofMillis(700));
 		buttons.add(itemButton);
 
-		helpButton = SpriteIconButton.builder(Component.literal("Shortcuts"), this::onHelpPressed, true)
-				.sprite(Identifier.fromNamespaceAndPath("waylandcraft", "crosshair/help"), 16, 16)
-				.size(22, 22)
-				.build();
-		helpButton.setPosition(3, topMargin + 90);
-		helpButton.setTooltip(Tooltip.create(Component.literal("Shortcuts")));
-		helpButton.setTooltipDelay(Duration.ofMillis(700));
-		buttons.add(helpButton);
-		
 		addRenderableWidget(grabButton);
 		addRenderableWidget(resizeButton);
 		addRenderableWidget(hideButton);
 		addRenderableWidget(pinButton);
 		addRenderableWidget(itemButton);
-		addRenderableWidget(helpButton);
 		
 		wlc.bridge.activateKeyboard();
 	}
@@ -206,10 +195,6 @@ public class WindowManagerScreen extends Screen {
 		wlc.itemManager.giveItem(focused);
 	}
 
-	private void onHelpPressed(Button button) {
-		Minecraft.getInstance().setScreen(new ShortcutHelpScreen(this));
-	}
-	
 	private void exitResizeMode() {
 		if(resizeToplevel != null && resizeToplevel.isAlive()) wlc.bridge.resizeToplevel(resizeToplevel, resizeWidth, resizeHeight);
 		
@@ -501,11 +486,6 @@ public class WindowManagerScreen extends Screen {
 			this.onClose();
 			return true;
 		}
-		if(event.key() == GLFW.GLFW_KEY_F1) {
-			Minecraft.getInstance().setScreen(new ShortcutHelpScreen(this));
-			return true;
-		}
-		
 		if(resizeMode) return true;
 		
 		// Forward key press to currently focused widget
