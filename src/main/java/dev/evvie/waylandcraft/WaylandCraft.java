@@ -928,7 +928,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		if(shortcuts != null) {
 			ShortcutResult shortcut = shortcuts.handle(event, action);
 			InputTrace.info("world.key.shortcut", "\"action\":" + InputTrace.s(shortcut.action() == null ? "none" : shortcut.action().name()) + ",\"consume\":" + shortcut.consume());
-			if(shortcut.action() != null) handleShortcut(shortcut.action());
+			if(shortcut.action() != null) handleShortcut(shortcut.action(), event);
 			if(shortcut.consume()) return true;
 		}
 
@@ -961,13 +961,13 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		return true;
 	}
 
-	private void handleShortcut(ShortcutAction action) {
+	private void handleShortcut(ShortcutAction action, net.minecraft.client.input.KeyEvent event) {
 		switch(action) {
 			case WINDOW_MANAGER -> {
 				releaseInputCaptureForUi("open-window-manager");
 				Minecraft.getInstance().setScreen(new WindowManagerScreen(WaylandCraft.instance));
 			}
-			case APP_LAUNCHER -> Minecraft.getInstance().setScreen(new AppLauncherScreen(WaylandCraft.instance));
+			case APP_LAUNCHER -> Minecraft.getInstance().setScreen(new AppLauncherScreen(WaylandCraft.instance, event));
 			case DESKTOP_PANEL -> {
 				if(desktopManager != null) desktopManager.placePanelInFrontOfPlayer();
 			}

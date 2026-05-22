@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.lwjgl.glfw.GLFW;
+
 import dev.evvie.waylandcraft.WaylandCraft;
 import dev.evvie.waylandcraft.desktop.DesktopEntry;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -16,20 +18,29 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
 public class AppLauncherScreen extends Screen {
+	private static final long OPENING_SHORTCUT_SUPPRESS_NANOS = 250_000_000L;
 	
 	private WaylandCraft wlc;
 	private AppListWidget list;
 	private CategorySelectorWidget categorySelector;
 	private EditBox searchBox;
+	private String openingShortcutText;
+	private long openingShortcutSuppressUntilNanos;
 	
 	private Component header;
 	
 	private ArrayList<Category> categories;
 	
 	public AppLauncherScreen(WaylandCraft wlc) {
+		this(wlc, null);
+	}
+
+	public AppLauncherScreen(WaylandCraft wlc, KeyEvent openingShortcut) {
 		super(Component.literal("App Launcher"));
 		
 		this.wlc = wlc;
+		this.openingShortcutText = openingShortcutText(openingShortcut);
+		this.openingShortcutSuppressUntilNanos = System.nanoTime() + OPENING_SHORTCUT_SUPPRESS_NANOS;
 	}
 	
 	@Override
@@ -135,8 +146,30 @@ public class AppLauncherScreen extends Screen {
 	
 	@Override
 	public boolean charTyped(CharacterEvent event) {
+		if(suppressOpeningShortcutCharacter(event)) return true;
 		if(searchBox.charTyped(event)) return true;
 		return super.charTyped(event);
+	}
+
+	private String openingShortcutText(KeyEvent event) {
+		if(event == null) return null;
+		if((event.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_ALT | GLFW.GLFW_MOD_SUPER)) != 0) return null;
+		String keyName = GLFW.glfwGetKeyName(event.key(), event.scancode());
+		if(keyName == null || keyName.codePointCount(0, keyName.length()) != 1) return null;
+		return keyName;
+	}
+
+	private boolean suppressOpeningShortcutCharacter(CharacterEvent event) {
+		if(openingShortcutText == null) return false;
+		if(System.nanoTime() > openingShortcutSuppressUntilNanos) {
+			openingShortcutText = null;
+			return false;
+		}
+
+		String typed = event.codepointAsString();
+		String shortcutText = openingShortcutText;
+		openingShortcutText = null;
+		return typed.equalsIgnoreCase(shortcutText);
 	}
 	
 	@Override
