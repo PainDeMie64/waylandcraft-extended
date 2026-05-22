@@ -2263,6 +2263,9 @@ pub extern "system" fn x11WindowFocus<'l>(
                 instance.state.describe_x11_window(&window)
             );
         }
+        if let Err(err) = xwm.set_active_window(&window) {
+            eprintln!("WLC X11 active-window update failed: {err}");
+        }
         if let Err(err) = xwm.raise_window(&window) {
             eprintln!("WLC X11 raise failed: {err}");
         }

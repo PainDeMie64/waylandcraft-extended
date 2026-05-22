@@ -839,6 +839,21 @@ impl X11Wm {
         self.id
     }
 
+    /// Updates the EWMH active window property to a managed X11 window.
+    pub fn set_active_window<'a, W: X11Relatable + 'a>(&self, window: &'a W) -> Result<(), ConnectionError> {
+        if let Some(elem) = self.windows.iter().find(|s| window.is_window(s)) {
+            self.conn.change_property32(
+                PropMode::REPLACE,
+                self.screen.root,
+                self.atoms._NET_ACTIVE_WINDOW,
+                AtomEnum::WINDOW,
+                &[elem.window_id()],
+            )?;
+            self.conn.flush()?;
+        }
+        Ok(())
+    }
+
     /// Raises a window in the internal X11 state
     ///
     /// Needs to be called to match raising of windows inside the compositor to keep the stacking order
@@ -2059,23 +2074,21 @@ where
             }
         }
         Event::FocusIn(n) => {
-            conn.change_property32(
-                PropMode::REPLACE,
-                xwm.screen.root,
-                xwm.atoms._NET_ACTIVE_WINDOW,
-                AtomEnum::WINDOW,
-                &[n.event],
-            )?;
+            if let Some(surface) = xwm
+                .windows
+                .iter()
+                .find(|surface| surface.window_id() == n.event || surface.mapped_window_id() == Some(n.event))
+            {
+                conn.change_property32(
+                    PropMode::REPLACE,
+                    xwm.screen.root,
+                    xwm.atoms._NET_ACTIVE_WINDOW,
+                    AtomEnum::WINDOW,
+                    &[surface.window_id()],
+                )?;
+            }
         }
-        Event::FocusOut(n) => {
-            conn.change_property32(
-                PropMode::REPLACE,
-                xwm.screen.root,
-                xwm.atoms._NET_ACTIVE_WINDOW,
-                AtomEnum::WINDOW,
-                &[n.event],
-            )?;
-        }
+        Event::FocusOut(_n) => {}
         Event::ClientMessage(msg) => {
             if let Some(reply) = conn.get_atom_name(msg.type_)?.reply_unchecked()? {
                 trace!(
