@@ -15,6 +15,12 @@ For the original project, base documentation, screenshots, build instructions, s
 
 This README documents only what this fork changes or adds.
 
+## Important Notes
+
+- Do not use a Minecraft launcher packaged as a Flatpak. Sandboxed launchers can hide desktop applications from WaylandCraft.
+- On NVIDIA, set `__GL_THREADED_OPTIMIZATIONS=0` in your launcher.
+- If you see weird graphics glitches on NVIDIA, enable Minecraft's "Improved Transparency" video setting.
+
 ## What This Fork Adds
 
 ### Xwayland, Steam, and Proton support
@@ -99,7 +105,7 @@ Use upstream WaylandCraft documentation for:
 
 Start here: [EVV1E/waylandcraft](https://github.com/EVV1E/waylandcraft)
 
-Fork-specific controls are configurable in Minecraft's Controls menu under `WaylandCraft Extended`:
+Fork-specific controls are configurable from the window manager's `Controls` panel:
 
 - `V`: app launcher
 - `B`: window manager
@@ -117,9 +123,8 @@ WaylandCraft Extended is experimental and Linux-only. Xwayland, Steam, Proton, a
 This repository is intended to be easy to find and share as the Xwayland/Steam/Proton-focused WaylandCraft fork. The recommended public repository name is `waylandcraft-extended`.
 
 ## Contribution Policy
-
 All contributions must comply with the GPLv3 license. See [LICENSE](LICENSE).
 
 This fork may contain and accept AI-assisted changes. Contributors should review, test, and take responsibility for submitted code.
 
-The upstream WaylandCraft project has a no-generative-AI contribution policy, so changes from this fork may not be suitable for upstream submission unless they are independently rewritten and reviewed under upstream's rules.
+The upstream WaylandCraft project has a stricter generative-AI contribution policy. Changes from this fork may not be suitable for upstream submission unless they are disclosed as draft PRs or independently rewritten and reviewed under upstream's rules.
