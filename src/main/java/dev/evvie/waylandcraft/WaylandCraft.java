@@ -22,6 +22,7 @@ import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.Size;
 import dev.evvie.waylandcraft.desktop.DesktopManager;
 import dev.evvie.waylandcraft.desktop.DesktopPanel.PanelHit;
 import dev.evvie.waylandcraft.desktop.XDGDesktopManager;
+import dev.evvie.waylandcraft.debug.InputTrace;
 import dev.evvie.waylandcraft.grabs.DNDGrab;
 import dev.evvie.waylandcraft.grabs.MonitorClientResizeGrab;
 import dev.evvie.waylandcraft.grabs.MonitorMoveGrab;
@@ -70,6 +71,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	public static final boolean DEBUG_INPUT = envFlagEnabled("WAYLANDCRAFT_DEBUG_INPUT");
 	public static final boolean DEBUG_OVERLAY = envFlagEnabled("WAYLANDCRAFT_DEBUG_OVERLAY");
 	public static final boolean DEBUG_TEXTURES = envFlagEnabled("WAYLANDCRAFT_DEBUG_TEXTURES");
+	public static final boolean INPUT_TRACE = InputTrace.ENABLED;
 	
 	public static WaylandCraft instance;
 	
@@ -130,8 +132,8 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		LOGGER.info("Initializing WaylandCraft");
-		if(DEBUG_WINDOWS || DEBUG_INPUT || DEBUG_OVERLAY || DEBUG_TEXTURES) {
-			LOGGER.info("WLC debug flags windows={} input={} overlay={} textures={}", DEBUG_WINDOWS, DEBUG_INPUT, DEBUG_OVERLAY, DEBUG_TEXTURES);
+		if(DEBUG_WINDOWS || DEBUG_INPUT || DEBUG_OVERLAY || DEBUG_TEXTURES || INPUT_TRACE) {
+			LOGGER.info("WLC debug flags windows={} input={} overlay={} textures={} trace={}", DEBUG_WINDOWS, DEBUG_INPUT, DEBUG_OVERLAY, DEBUG_TEXTURES, INPUT_TRACE);
 		}
 		
 		instance = this;
@@ -241,11 +243,14 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	}
 	
 	public void enableKeyboardCapture(boolean hardCapture) {
+		InputTrace.currentOrBegin("java.capture_enable", "\"hard\":" + hardCapture);
+		InputTrace.info("capture.enable.request", "\"hard\":" + hardCapture + ",\"mode\":" + InputTrace.s(keyboardCaptureMode.name()) + ",\"focus\":" + InputTrace.s(describeWindow(bridge == null ? null : bridge.getMostRecentFocus())));
 		if(hardCapture) {
 			if(keyboardCaptureMode == KeyboardCaptureMode.HARD_CAPTURE) return;
 			if(!enableHardPointerCapture("hard-capture-toggle")) return;
 			keyboardCaptureMode = KeyboardCaptureMode.HARD_CAPTURE;
 			if(DEBUG_INPUT) LOGGER.info("WLC input java capture-start mode=hard target={}", describeWindow(bridge.getMostRecentFocus()));
+			InputTrace.info("capture.enable.hard.start", "\"focus\":" + InputTrace.s(describeWindow(bridge.getMostRecentFocus())));
 			bridge.activateKeyboard();
 			Minecraft.getInstance().mouseHandler.grabMouse();
 			return;
@@ -255,16 +260,19 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 
 		keyboardCaptureMode = KeyboardCaptureMode.CAPTURE;
 		if(DEBUG_INPUT) LOGGER.info("WLC input java capture-start mode=keys target={}", describeWindow(bridge.getMostRecentFocus()));
+		InputTrace.info("capture.enable.keys.start", "\"focus\":" + InputTrace.s(describeWindow(bridge.getMostRecentFocus())));
 		bridge.activateKeyboard();
 	}
 
 	private boolean enableHardPointerCapture(String reason) {
+		InputTrace.info("pointer_capture.enable_hard.request", "\"reason\":" + InputTrace.s(reason) + ",\"focus\":" + InputTrace.s(describeWindow(bridge.getMostRecentFocus())));
 		WLCToplevel target = bridge.getMostRecentFocus();
 		if(target == null && hoveredDisplay != null) {
 			target = rootToplevel(hoveredDisplay.target.window);
 		}
 		if(target == null || target.getSurfaceTree() == null || !target.getSurfaceTree().isAlive()) {
 			if(DEBUG_WINDOWS) LOGGER.info("WLC pointer hard capture skipped reason={} target=none", reason);
+			InputTrace.info("pointer_capture.enable_hard.skip", "\"reason\":" + InputTrace.s(reason) + ",\"target\":\"none\"");
 			return false;
 		}
 
@@ -281,6 +289,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		if(DEBUG_WINDOWS) {
 			LOGGER.info("WLC pointer capture start reason={} mode=hard surface={} owner={} at={}x{}", reason, surface.getDebugHandle(), describeSurfaceOwner(surface), x, y);
 		}
+		InputTrace.info("pointer_capture.enable_hard.start", "\"reason\":" + InputTrace.s(reason) + ",\"surface_debug\":" + surface.getDebugHandle() + ",\"owner\":" + InputTrace.s(describeSurfaceOwner(surface)) + ",\"x\":" + x + ",\"y\":" + y);
 		return true;
 	}
 	
@@ -289,6 +298,8 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	}
 
 	public void disableKeyboardCapture(String reason) {
+		InputTrace.currentOrBegin("java.capture_disable", "\"reason\":" + InputTrace.s(reason));
+		InputTrace.info("capture.disable.request", "\"reason\":" + InputTrace.s(reason) + ",\"mode\":" + InputTrace.s(keyboardCaptureMode.name()) + ",\"focus\":" + InputTrace.s(describeWindow(bridge.getMostRecentFocus())) + ",\"pointer_capture\":" + InputTrace.s(pointerCapture == null ? "none" : describeSurfaceOwner(pointerCapture.surface)));
 		if(keyboardCaptureMode == KeyboardCaptureMode.NONE) {
 			disablePointerCapture(reason);
 			return;
@@ -513,6 +524,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			LOGGER.info("WLC pointer capture end reason={} surface={} owner={}", reason, pointerCapture.surface.getDebugHandle(), describeSurfaceOwner(pointerCapture.surface));
 		}
 
+		InputTrace.info("pointer_capture.disable", "\"reason\":" + InputTrace.s(reason) + ",\"capture\":" + InputTrace.s(pointerCapture == null ? "none" : describeSurfaceOwner(pointerCapture.surface)));
 		bridge.unlockPointer();
 		bridge.sendMotionOutside();
 		pointerCapture = null;
@@ -663,10 +675,12 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	 * Returns true when the mouse button action has been consumed
 	 */
 	public boolean onButtonPress(long windowHandle, int button, int action, int modifiers) {
+		InputTrace.info("world.button.entry", "\"window\":" + windowHandle + ",\"button\":" + button + ",\"action\":" + action + ",\"modifiers\":" + modifiers + ",\"mode\":" + InputTrace.s(keyboardCaptureMode.name()) + ",\"pointer_capture\":" + InputTrace.s(pointerCapture == null ? "none" : describeSurfaceOwner(pointerCapture.surface)) + ",\"hovered\":" + InputTrace.s(hoveredDisplay == null ? "none" : describeWindow(hoveredDisplay.target.window)));
 		if(pointerCapture != null) {
 			if(DEBUG_WINDOWS && action == 1) {
 				LOGGER.info("WLC pointer capture button route button={} surface={} owner={} hovered={}", button, pointerCapture.surface.getDebugHandle(), describeSurfaceOwner(pointerCapture.surface), hoveredDisplay == null ? "none" : describeWindow(hoveredDisplay.target.window));
 			}
+			InputTrace.info("world.button.pointer_capture_route", "\"button\":" + button + ",\"action\":" + action + ",\"surface_debug\":" + pointerCapture.surface.getDebugHandle() + ",\"owner\":" + InputTrace.s(describeSurfaceOwner(pointerCapture.surface)));
 
 			if(action == 1 && !pointerCapture.pressedButtons.contains(button)) {
 				bridge.sendButton(0x110 + button, 1);
@@ -684,21 +698,27 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		}
 		
 		if(action == 0 && pointerGrabs.isGrabActive(button)) {
+			InputTrace.info("world.button.release_grab", "\"button\":" + button);
 			pointerGrabs.release(button);
 			editedDisplay = null;
 			return true;
 		}
 		
-		if(pointerGrabs.isExclusiveGrabActive()) return true;
+		if(pointerGrabs.isExclusiveGrabActive()) {
+			InputTrace.info("world.button.exclusive_grab_consumed", "\"button\":" + button + ",\"action\":" + action);
+			return true;
+		}
 		
 		// Handle implicit pointer grab button presses
 		if(action == 1) {
 			if(hoveredPanel != null && desktopManager != null) {
+				InputTrace.info("world.button.panel", "\"button\":" + button);
 				desktopManager.handlePanelButton(hoveredPanel, button);
 				return true;
 			}
 
 			if(hoveredDisplay != null && hoveredDisplay.control.isButton()) {
+				InputTrace.info("world.button.monitor_control", "\"button\":" + button + ",\"control\":" + InputTrace.s(hoveredDisplay.control.name()) + ",\"window\":" + InputTrace.s(describeWindow(hoveredDisplay.target.window)));
 				handleMonitorControl(hoveredDisplay, button);
 				return true;
 			}
@@ -713,15 +733,20 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			
 			// If an implicit pointer grab is now active, capture the button press
 			if(pointerGrabs.isImplicitActive()) {
+				InputTrace.info("world.button.implicit_route", "\"button\":" + button + ",\"hovered\":" + InputTrace.s(hoveredDisplay == null ? "none" : describeWindow(hoveredDisplay.target.window)));
 				focusHoveredDisplay("world-implicit-button", button);
 				pointerGrabs.sendImplicitButton(button);
 				return true;
 			}
 			
 			// If clicking on a window at all, the button press should be captured, even if it wasn't passed on to the application
-			if(hoveredDisplay != null) return true;
+			if(hoveredDisplay != null) {
+				InputTrace.info("world.button.window_consumed_without_route", "\"window\":" + InputTrace.s(describeWindow(hoveredDisplay.target.window)));
+				return true;
+			}
 		}
 		
+		InputTrace.info("world.button.pass", "\"button\":" + button + ",\"action\":" + action);
 		return false;
 	}
 
@@ -736,6 +761,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		if(DEBUG_WINDOWS) {
 			LOGGER.info("WLC world pointer route reason={} button={} window={} surface={} rel={}x{}", reason, button, describeWindow(window), surface.getDebugHandle(), rel.x, rel.y);
 		}
+		InputTrace.info("world.focus_hovered", "\"reason\":" + InputTrace.s(reason) + ",\"button\":" + button + ",\"window\":" + InputTrace.s(describeWindow(window)) + ",\"surface_debug\":" + surface.getDebugHandle() + ",\"x\":" + rel.x + ",\"y\":" + rel.y);
 
 		bridge.sendMotionRefocus(surface, rel.x, rel.y, reason);
 		bridge.focusSurface(rootToplevel(window));
@@ -807,19 +833,34 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 
 	/* Handle raw cursor motion before Minecraft accumulates it for camera turning. */
 	public boolean onRawMouseMove(long windowHandle, double dx, double dy) {
-		if(bridge == null) return false;
-		if(keyboardCaptureMode != KeyboardCaptureMode.HARD_CAPTURE) return false;
-		if(pointerCapture == null) return false;
+		InputTrace.info("world.raw_mouse.entry", "\"window\":" + windowHandle + ",\"dx\":" + dx + ",\"dy\":" + dy + ",\"mode\":" + InputTrace.s(keyboardCaptureMode.name()) + ",\"pointer_capture\":" + InputTrace.s(pointerCapture == null ? "none" : describeSurfaceOwner(pointerCapture.surface)));
+		if(bridge == null) {
+			InputTrace.info("world.raw_mouse.pass", "\"reason\":\"no-bridge\"");
+			return false;
+		}
+		if(keyboardCaptureMode != KeyboardCaptureMode.HARD_CAPTURE) {
+			InputTrace.info("world.raw_mouse.pass", "\"reason\":\"not-hard-capture\"");
+			return false;
+		}
+		if(pointerCapture == null) {
+			InputTrace.info("world.raw_mouse.pass", "\"reason\":\"no-pointer-capture\"");
+			return false;
+		}
 		if(!pointerCapture.surface.isAlive()) {
+			InputTrace.info("world.raw_mouse.surface_dead", "\"owner\":" + InputTrace.s(describeSurfaceOwner(pointerCapture.surface)));
 			disablePointerCapture("surface-dead");
 			return true;
 		}
-		if(windowHandle != Minecraft.getInstance().getWindow().handle()) return false;
+		if(windowHandle != Minecraft.getInstance().getWindow().handle()) {
+			InputTrace.info("world.raw_mouse.pass", "\"reason\":\"wrong-window\",\"expected\":" + Minecraft.getInstance().getWindow().handle());
+			return false;
+		}
 
 		double maxX = Math.max(1.0, pointerCapture.surface.width());
 		double maxY = Math.max(1.0, pointerCapture.surface.height());
 		pointerCapture.x = Math.clamp(pointerCapture.x + dx, 0.0, maxX);
 		pointerCapture.y = Math.clamp(pointerCapture.y + dy, 0.0, maxY);
+		InputTrace.info("world.raw_mouse.forward", "\"surface_debug\":" + pointerCapture.surface.getDebugHandle() + ",\"owner\":" + InputTrace.s(describeSurfaceOwner(pointerCapture.surface)) + ",\"x\":" + pointerCapture.x + ",\"y\":" + pointerCapture.y + ",\"dx\":" + dx + ",\"dy\":" + dy);
 		bridge.sendMotion(pointerCapture.x, pointerCapture.y);
 		bridge.sendRelativeMotion(dx, dy);
 		return true;
@@ -829,6 +870,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	 * Returns true when the mouse scroll action has been consumed
 	 */
 	public boolean onScroll(long windowHandle, double scrollX, double scrollY) {
+		InputTrace.info("world.scroll.entry", "\"window\":" + windowHandle + ",\"scroll_x\":" + scrollX + ",\"scroll_y\":" + scrollY + ",\"hovered\":" + InputTrace.s(hoveredDisplay == null ? "none" : describeWindow(hoveredDisplay.target.window)) + ",\"exclusive_grab\":" + pointerGrabs.isExclusiveGrabActive());
 		if(playerUsingWindowItem) {
 			if(Minecraft.getInstance().player == null) return true;
 			WLCToplevel toplevel = WindowItem.getToplevel(Minecraft.getInstance().player.getUseItem());
@@ -836,12 +878,14 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 				WindowDisplay display = getDisplay(toplevel);
 				if(display != null) {
 					display.adjustAnchorDistance(scrollY);
+					InputTrace.info("world.scroll.window_item", "\"window\":" + InputTrace.s(describeWindow(toplevel)) + ",\"scroll_y\":" + scrollY);
 					return true;
 				}
 			}
 		}
 
 		if(pointerGrabs.isExclusiveGrabActive()) {
+			InputTrace.info("world.scroll.exclusive_grab", "\"scroll_x\":" + scrollX + ",\"scroll_y\":" + scrollY);
 			pointerGrabs.onScroll(scrollX, scrollY);
 			return true;
 		}
@@ -852,12 +896,14 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 			
 			// Multiplication by -10 is the inverse transformation from what GLFW does on wayland
 			focusHoveredDisplay("world-scroll", -1);
+			InputTrace.info("world.scroll.forward", "\"target\":" + InputTrace.s(describeWindow(hoveredDisplay.target.window)) + ",\"vertical\":" + (-scrollY * 10) + ",\"horizontal\":" + (-scrollX * 10));
 			bridge.sendScroll(0, -scrollY * 10);
 			bridge.sendScroll(1, -scrollX * 10);
 			
 			return true;
 		}
 		
+		InputTrace.info("world.scroll.pass", "\"reason\":\"no-target\"");
 		return false;
 	}
 	
@@ -870,6 +916,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	public boolean onKeyPress(long windowHandle, int key, int scancode, int action, int modifiers, net.minecraft.client.input.KeyEvent event) {
 		boolean press = action == GLFW.GLFW_PRESS;
 		boolean release = action == GLFW.GLFW_RELEASE;
+		InputTrace.info("world.key.entry", "\"window\":" + windowHandle + ",\"key\":" + key + ",\"scancode\":" + scancode + ",\"action\":" + action + ",\"modifiers\":" + modifiers + ",\"mode\":" + InputTrace.s(keyboardCaptureMode.name()) + ",\"screen\":" + InputTrace.s(Minecraft.getInstance().screen == null ? "none" : Minecraft.getInstance().screen.getClass().getSimpleName()) + ",\"focus\":" + InputTrace.s(describeWindow(bridge.getMostRecentFocus())) + ",\"pointer_capture\":" + InputTrace.s(pointerCapture == null ? "none" : describeSurfaceOwner(pointerCapture.surface)));
 		if(DEBUG_INPUT && (press || release)) {
 			LOGGER.info("WLC input java key-event key={} scancode={} action={} modifiers={} mode={} screen={} focus={} pointerCapture={}",
 					key, scancode, action, modifiers, keyboardCaptureMode,
@@ -880,6 +927,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 
 		if(shortcuts != null) {
 			ShortcutResult shortcut = shortcuts.handle(event, action);
+			InputTrace.info("world.key.shortcut", "\"action\":" + InputTrace.s(shortcut.action() == null ? "none" : shortcut.action().name()) + ",\"consume\":" + shortcut.consume());
 			if(shortcut.action() != null) handleShortcut(shortcut.action());
 			if(shortcut.consume()) return true;
 		}
@@ -895,15 +943,18 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 
 		if(keyboardCaptureMode == KeyboardCaptureMode.NONE) {
 			if(DEBUG_INPUT && (press || release)) LOGGER.info("WLC input java key-pass-through key={} scancode={} action={} reason=no-capture", key, scancode, action);
+			InputTrace.info("world.key.pass", "\"reason\":\"no-capture\",\"key\":" + key + ",\"scancode\":" + scancode + ",\"action\":" + action);
 			return false;
 		}
 		
 		if(action == GLFW.GLFW_PRESS) {
 			if(DEBUG_INPUT) LOGGER.info("WLC input java key-forward state=press scancode={} mode={} target={}", scancode, keyboardCaptureMode, describeWindow(bridge.getMostRecentFocus()));
+			InputTrace.info("world.key.forward", "\"state\":\"press\",\"scancode\":" + scancode + ",\"mode\":" + InputTrace.s(keyboardCaptureMode.name()) + ",\"target\":" + InputTrace.s(describeWindow(bridge.getMostRecentFocus())));
 			bridge.pressKey(scancode);
 		}
 		else if(action == GLFW.GLFW_RELEASE) {
 			if(DEBUG_INPUT) LOGGER.info("WLC input java key-forward state=release scancode={} mode={} target={}", scancode, keyboardCaptureMode, describeWindow(bridge.getMostRecentFocus()));
+			InputTrace.info("world.key.forward", "\"state\":\"release\",\"scancode\":" + scancode + ",\"mode\":" + InputTrace.s(keyboardCaptureMode.name()) + ",\"target\":" + InputTrace.s(describeWindow(bridge.getMostRecentFocus())));
 			bridge.releaseKey(scancode);
 		}
 		

@@ -12,6 +12,8 @@ use x11rb::protocol::xproto::{
 use x11rb::rust_connection::RustConnection;
 use x11rb::x11_utils::TryParse;
 
+use crate::input_trace;
+
 #[derive(Clone)]
 pub(crate) struct X11InputProbe {
     tx: Sender<X11ProbeCommand>,
@@ -132,60 +134,129 @@ fn watch_one(conn: &RustConnection, window: Window, label: &str, kind: &str) {
 
 fn log_x11_event(event: Event) {
     match event {
-        Event::EnterNotify(event) => println!(
-            "WLC input x11-event enter event=0x{:x} child=0x{:x} root=({}, {}) event=({}, {}) mode={:?} detail={:?}",
-            event.event,
-            event.child,
-            event.root_x,
-            event.root_y,
-            event.event_x,
-            event.event_y,
-            event.mode,
-            event.detail
-        ),
-        Event::LeaveNotify(event) => println!(
-            "WLC input x11-event leave event=0x{:x} child=0x{:x} root=({}, {}) event=({}, {}) mode={:?} detail={:?}",
-            event.event,
-            event.child,
-            event.root_x,
-            event.root_y,
-            event.event_x,
-            event.event_y,
-            event.mode,
-            event.detail
-        ),
-        Event::MotionNotify(event) => println!(
-            "WLC input x11-event motion event=0x{:x} child=0x{:x} root=({}, {}) event=({}, {}) state={:?}",
-            event.event,
-            event.child,
-            event.root_x,
-            event.root_y,
-            event.event_x,
-            event.event_y,
-            event.state
-        ),
-        Event::ButtonPress(event) => println!(
-            "WLC input x11-event button-press event=0x{:x} child=0x{:x} detail={} root=({}, {}) event=({}, {}) state={:?}",
-            event.event,
-            event.child,
-            event.detail,
-            event.root_x,
-            event.root_y,
-            event.event_x,
-            event.event_y,
-            event.state
-        ),
-        Event::ButtonRelease(event) => println!(
-            "WLC input x11-event button-release event=0x{:x} child=0x{:x} detail={} root=({}, {}) event=({}, {}) state={:?}",
-            event.event,
-            event.child,
-            event.detail,
-            event.root_x,
-            event.root_y,
-            event.event_x,
-            event.event_y,
-            event.state
-        ),
+        Event::EnterNotify(event) => {
+            let fields = format!(
+                "\"event\":\"0x{:x}\",\"child\":\"0x{:x}\",\"root_x\":{},\"root_y\":{},\"event_x\":{},\"event_y\":{},\"mode\":{},\"detail\":{}",
+                event.event,
+                event.child,
+                event.root_x,
+                event.root_y,
+                event.event_x,
+                event.event_y,
+                input_trace::json(&format!("{:?}", event.mode)),
+                input_trace::json(&format!("{:?}", event.detail))
+            );
+            input_trace::event("x11-event", "enter", &fields);
+            println!(
+                "WLC input x11-event enter event=0x{:x} child=0x{:x} root=({}, {}) event=({}, {}) mode={:?} detail={:?}",
+                event.event,
+                event.child,
+                event.root_x,
+                event.root_y,
+                event.event_x,
+                event.event_y,
+                event.mode,
+                event.detail
+            );
+        }
+        Event::LeaveNotify(event) => {
+            let fields = format!(
+                "\"event\":\"0x{:x}\",\"child\":\"0x{:x}\",\"root_x\":{},\"root_y\":{},\"event_x\":{},\"event_y\":{},\"mode\":{},\"detail\":{}",
+                event.event,
+                event.child,
+                event.root_x,
+                event.root_y,
+                event.event_x,
+                event.event_y,
+                input_trace::json(&format!("{:?}", event.mode)),
+                input_trace::json(&format!("{:?}", event.detail))
+            );
+            input_trace::event("x11-event", "leave", &fields);
+            println!(
+                "WLC input x11-event leave event=0x{:x} child=0x{:x} root=({}, {}) event=({}, {}) mode={:?} detail={:?}",
+                event.event,
+                event.child,
+                event.root_x,
+                event.root_y,
+                event.event_x,
+                event.event_y,
+                event.mode,
+                event.detail
+            );
+        }
+        Event::MotionNotify(event) => {
+            let fields = format!(
+                "\"event\":\"0x{:x}\",\"child\":\"0x{:x}\",\"root_x\":{},\"root_y\":{},\"event_x\":{},\"event_y\":{},\"state\":{}",
+                event.event,
+                event.child,
+                event.root_x,
+                event.root_y,
+                event.event_x,
+                event.event_y,
+                input_trace::json(&format!("{:?}", event.state))
+            );
+            input_trace::event("x11-event", "motion", &fields);
+            println!(
+                "WLC input x11-event motion event=0x{:x} child=0x{:x} root=({}, {}) event=({}, {}) state={:?}",
+                event.event,
+                event.child,
+                event.root_x,
+                event.root_y,
+                event.event_x,
+                event.event_y,
+                event.state
+            );
+        }
+        Event::ButtonPress(event) => {
+            let fields = format!(
+                "\"event\":\"0x{:x}\",\"child\":\"0x{:x}\",\"detail\":{},\"root_x\":{},\"root_y\":{},\"event_x\":{},\"event_y\":{},\"state\":{}",
+                event.event,
+                event.child,
+                event.detail,
+                event.root_x,
+                event.root_y,
+                event.event_x,
+                event.event_y,
+                input_trace::json(&format!("{:?}", event.state))
+            );
+            input_trace::event("x11-event", "button_press", &fields);
+            println!(
+                "WLC input x11-event button-press event=0x{:x} child=0x{:x} detail={} root=({}, {}) event=({}, {}) state={:?}",
+                event.event,
+                event.child,
+                event.detail,
+                event.root_x,
+                event.root_y,
+                event.event_x,
+                event.event_y,
+                event.state
+            );
+        }
+        Event::ButtonRelease(event) => {
+            let fields = format!(
+                "\"event\":\"0x{:x}\",\"child\":\"0x{:x}\",\"detail\":{},\"root_x\":{},\"root_y\":{},\"event_x\":{},\"event_y\":{},\"state\":{}",
+                event.event,
+                event.child,
+                event.detail,
+                event.root_x,
+                event.root_y,
+                event.event_x,
+                event.event_y,
+                input_trace::json(&format!("{:?}", event.state))
+            );
+            input_trace::event("x11-event", "button_release", &fields);
+            println!(
+                "WLC input x11-event button-release event=0x{:x} child=0x{:x} detail={} root=({}, {}) event=({}, {}) state={:?}",
+                event.event,
+                event.child,
+                event.detail,
+                event.root_x,
+                event.root_y,
+                event.event_x,
+                event.event_y,
+                event.state
+            );
+        }
         _ => {}
     }
 }
@@ -259,14 +330,14 @@ fn record_probe_thread(display: String) {
     let range = record::Range {
         core_requests: record::Range8 {
             first: 26,
-            last: 35,
+            last: 42,
         },
         core_replies: empty,
         ext_requests: empty_ext,
         ext_replies: empty_ext,
         delivered_events: empty,
         device_events: record::Range8 {
-            first: xproto::BUTTON_PRESS_EVENT,
+            first: xproto::KEY_PRESS_EVENT,
             last: xproto::MOTION_NOTIFY_EVENT,
         },
         errors: empty,
@@ -357,6 +428,31 @@ fn log_x11_record_requests(mut data: &[u8]) {
                 "WLC input x11-record request AllowEvents raw={:?}",
                 &data[..len]
             ),
+            31 => println!(
+                "WLC input x11-record request GrabKeyboard raw={:?}",
+                &data[..len]
+            ),
+            32 => println!(
+                "WLC input x11-record request UngrabKeyboard raw={:?}",
+                &data[..len]
+            ),
+            42 => println!(
+                "WLC input x11-record request SetInputFocus raw={:?}",
+                &data[..len]
+            ),
+            _ => {}
+        }
+        match opcode {
+            26 | 27 | 28 | 29 | 31 | 32 | 35 | 42 => input_trace::event(
+                "x11-record",
+                "request",
+                &format!(
+                    "\"opcode\":{},\"name\":{},\"raw\":{}",
+                    opcode,
+                    input_trace::json(request_name(opcode)),
+                    input_trace::json(&format!("{:?}", &data[..len]))
+                ),
+            ),
             _ => {}
         }
 
@@ -367,9 +463,75 @@ fn log_x11_record_requests(mut data: &[u8]) {
 fn log_x11_record_events(mut data: &[u8]) {
     while !data.is_empty() {
         match data[0] {
+            xproto::KEY_PRESS_EVENT => {
+                match xproto::KeyPressEvent::try_parse(data) {
+                    Ok((event, remaining)) => {
+                        input_trace::event(
+                            "x11-record",
+                            "delivered_key_press",
+                            &format!(
+                                "\"event\":\"0x{:x}\",\"child\":\"0x{:x}\",\"detail\":{},\"state\":{}",
+                                event.event,
+                                event.child,
+                                event.detail,
+                                input_trace::json(&format!(
+                                    "{:?}",
+                                    event.state
+                                ))
+                            ),
+                        );
+                        println!(
+                            "WLC input x11-record delivered key-press event=0x{:x} child=0x{:x} detail={}",
+                            event.event, event.child, event.detail
+                        );
+                        data = remaining;
+                    }
+                    Err(err) => {
+                        log_record_parse_error(err, "key-press");
+                        break;
+                    }
+                }
+            }
+            xproto::KEY_RELEASE_EVENT => {
+                match xproto::KeyReleaseEvent::try_parse(data) {
+                    Ok((event, remaining)) => {
+                        input_trace::event(
+                            "x11-record",
+                            "delivered_key_release",
+                            &format!(
+                                "\"event\":\"0x{:x}\",\"child\":\"0x{:x}\",\"detail\":{},\"state\":{}",
+                                event.event,
+                                event.child,
+                                event.detail,
+                                input_trace::json(&format!(
+                                    "{:?}",
+                                    event.state
+                                ))
+                            ),
+                        );
+                        println!(
+                            "WLC input x11-record delivered key-release event=0x{:x} child=0x{:x} detail={}",
+                            event.event, event.child, event.detail
+                        );
+                        data = remaining;
+                    }
+                    Err(err) => {
+                        log_record_parse_error(err, "key-release");
+                        break;
+                    }
+                }
+            }
             xproto::BUTTON_PRESS_EVENT => {
                 match xproto::ButtonPressEvent::try_parse(data) {
                     Ok((event, remaining)) => {
+                        input_trace::event(
+                            "x11-record",
+                            "delivered_button_press",
+                            &format!(
+                                "\"event\":\"0x{:x}\",\"child\":\"0x{:x}\",\"detail\":{}",
+                                event.event, event.child, event.detail
+                            ),
+                        );
                         println!(
                             "WLC input x11-record delivered button-press event=0x{:x} child=0x{:x} detail={}",
                             event.event, event.child, event.detail
@@ -385,6 +547,14 @@ fn log_x11_record_events(mut data: &[u8]) {
             xproto::BUTTON_RELEASE_EVENT => {
                 match xproto::ButtonReleaseEvent::try_parse(data) {
                     Ok((event, remaining)) => {
+                        input_trace::event(
+                            "x11-record",
+                            "delivered_button_release",
+                            &format!(
+                                "\"event\":\"0x{:x}\",\"child\":\"0x{:x}\",\"detail\":{}",
+                                event.event, event.child, event.detail
+                            ),
+                        );
                         println!(
                             "WLC input x11-record delivered button-release event=0x{:x} child=0x{:x} detail={}",
                             event.event, event.child, event.detail
@@ -400,6 +570,14 @@ fn log_x11_record_events(mut data: &[u8]) {
             xproto::MOTION_NOTIFY_EVENT => {
                 match xproto::MotionNotifyEvent::try_parse(data) {
                     Ok((event, remaining)) => {
+                        input_trace::event(
+                            "x11-record",
+                            "delivered_motion",
+                            &format!(
+                                "\"event\":\"0x{:x}\",\"child\":\"0x{:x}\"",
+                                event.event, event.child
+                            ),
+                        );
                         println!(
                             "WLC input x11-record delivered motion event=0x{:x} child=0x{:x}",
                             event.event, event.child
@@ -427,6 +605,20 @@ fn log_x11_record_events(mut data: &[u8]) {
                 data = &data[32..];
             }
         }
+    }
+}
+
+fn request_name(opcode: u8) -> &'static str {
+    match opcode {
+        26 => "GrabPointer",
+        27 => "UngrabPointer",
+        28 => "GrabButton",
+        29 => "UngrabButton",
+        31 => "GrabKeyboard",
+        32 => "UngrabKeyboard",
+        35 => "AllowEvents",
+        42 => "SetInputFocus",
+        _ => "unknown",
     }
 }
 

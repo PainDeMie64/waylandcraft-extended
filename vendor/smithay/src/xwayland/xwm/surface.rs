@@ -1106,9 +1106,26 @@ impl<D: SeatHandler + 'static> KeyboardTarget<D> for X11Surface {
             WmInputModel::LocallyActive => (true, true),
             WmInputModel::GloballyActive => (false, true),
         };
+        if std::env::var("WAYLANDCRAFT_INPUT_TRACE").is_ok() {
+            eprintln!(
+                "WLC input trace smithay-x11 keyboard-enter xid=0x{:x} input_model={:?} set_input_focus={} send_take_focus={} key_count={} serial={:?}",
+                self.window,
+                self.input_model(),
+                set_input_focus,
+                send_take_focus,
+                keys.len(),
+                serial
+            );
+        }
 
         if let Some(conn) = self.conn.upgrade() {
             if set_input_focus {
+                if std::env::var("WAYLANDCRAFT_INPUT_TRACE").is_ok() {
+                    eprintln!(
+                        "WLC input trace smithay-x11 set-input-focus xid=0x{:x}",
+                        self.window
+                    );
+                }
                 if let Err(err) = conn.set_input_focus(InputFocus::NONE, self.window, x11rb::CURRENT_TIME) {
                     warn!("Unable to set focus for X11Surface ({:?}): {}", self.window, err);
                 }
@@ -1150,6 +1167,13 @@ impl<D: SeatHandler + 'static> KeyboardTarget<D> for X11Surface {
         if self.input_model() == WmInputModel::None {
             return;
         } else if let Some(conn) = self.conn.upgrade() {
+            if std::env::var("WAYLANDCRAFT_INPUT_TRACE").is_ok() {
+                eprintln!(
+                    "WLC input trace smithay-x11 keyboard-leave xid=0x{:x} serial={:?}",
+                    self.window,
+                    serial
+                );
+            }
             if let Err(err) = conn.set_input_focus(InputFocus::NONE, x11rb::NONE, x11rb::CURRENT_TIME) {
                 warn!("Unable to unfocus X11Surface ({:?}): {}", self.window, err);
             }
@@ -1174,6 +1198,16 @@ impl<D: SeatHandler + 'static> KeyboardTarget<D> for X11Surface {
     ) {
         if self.input_model() == WmInputModel::None {
             return;
+        }
+        if std::env::var("WAYLANDCRAFT_INPUT_TRACE").is_ok() {
+            eprintln!(
+                "WLC input trace smithay-x11 keyboard-key xid=0x{:x} raw={:?} state={:?} serial={:?} time={}",
+                self.window,
+                key.raw_code(),
+                state,
+                serial,
+                time
+            );
         }
 
         let mut xstate = self.state.lock().unwrap();

@@ -6,8 +6,8 @@ use crate::svg::render_svg;
 use crate::utils::get_time;
 use crate::xdg_spec::RawDesktopEntry;
 use crate::{
-    WLCState, WaylandCraft, debug_input_enabled, log_native_stderr,
-    set_debug_input_enabled, wlc_init,
+    WLCState, WaylandCraft, debug_input_enabled, input_trace,
+    log_native_stderr, set_debug_input_enabled, wlc_init,
 };
 use jni::{
     JNIEnv,
@@ -92,6 +92,10 @@ fn surface_label_for_bridge(surface: &WlSurface) -> String {
     format!("resource={:?} client={client}", surface.id())
 }
 
+fn trace_bridge(event_type: &str, fields: &str) {
+    input_trace::event("native-jni", event_type, fields);
+}
+
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
     init")]
 pub extern "system" fn init<'l>(
@@ -126,6 +130,38 @@ pub extern "system" fn setNativeDebugInput<'l>(
     enabled: jboolean,
 ) {
     set_debug_input_enabled(enabled == JNI_TRUE);
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    setNativeInputTracePath")]
+pub extern "system" fn setNativeInputTracePath<'l>(
+    mut env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    path: JString<'l>,
+) {
+    let Ok(path) = env.get_string(&path) else {
+        return;
+    };
+    input_trace::init(path.to_string_lossy().as_ref());
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    setNativeInputTraceCurrent")]
+pub extern "system" fn setNativeInputTraceCurrent<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+    trace_id: jlong,
+) {
+    input_trace::set_current(trace_id);
+}
+
+#[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
+    clearNativeInputTraceCurrent")]
+pub extern "system" fn clearNativeInputTraceCurrent<'l>(
+    _env: JNIEnv<'l>,
+    _class: JClass<'l>,
+) {
+    input_trace::clear_current();
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
@@ -1090,6 +1126,7 @@ pub extern "system" fn pointerMotion<'l>(
     y: jdouble,
 ) {
     let instance = jptr_to_instance(ptr);
+    trace_bridge("pointerMotion.entry", &format!("\"x\":{x:.4},\"y\":{y:.4}"));
     if debug_input_enabled() {
         println!("WLC input bridge pointerMotion x={x:.2} y={y:.2}");
     }
@@ -1108,18 +1145,24 @@ pub extern "system" fn pointerMotionFocus<'l>(
 ) {
     let instance = jptr_to_instance(ptr);
     let surface = jptr_to_wlsurface(handle);
+    let owner = surface
+        .as_ref()
+        .and_then(|surface| instance.state.describe_x11_surface_owner(surface))
+        .unwrap_or_else(|| "native-or-none".into());
+    let target = surface
+        .as_ref()
+        .map(|surface| format!("{:?}", surface.id()))
+        .unwrap_or_else(|| "none".into());
+    trace_bridge(
+        "pointerMotionFocus.entry",
+        &format!(
+            "\"handle\":{handle},\"target\":{},\"owner\":{},\"x\":{x:.4},\"y\":{y:.4}",
+            input_trace::json(&target),
+            input_trace::json(&owner)
+        ),
+    );
 
     if debug_input_enabled() {
-        let owner = surface
-            .as_ref()
-            .and_then(|surface| {
-                instance.state.describe_x11_surface_owner(surface)
-            })
-            .unwrap_or_else(|| "native-or-none".into());
-        let target = surface
-            .as_ref()
-            .map(|surface| format!("{:?}", surface.id()))
-            .unwrap_or_else(|| "none".into());
         println!(
             "WLC input bridge pointerMotionFocus target={target} owner={owner} x={x:.2} y={y:.2}"
         );
@@ -1137,6 +1180,10 @@ pub extern "system" fn pointerRelMotion<'l>(
     dy: jdouble,
 ) {
     let instance = jptr_to_instance(ptr);
+    trace_bridge(
+        "pointerRelMotion.entry",
+        &format!("\"dx\":{dx:.4},\"dy\":{dy:.4}"),
+    );
 
     if debug_input_enabled() {
         println!("WLC input bridge pointerRelMotion dx={dx:.2} dy={dy:.2}");
@@ -1155,20 +1202,36 @@ pub extern "system" fn maybePointerLock<'l>(
     let instance = jptr_to_instance(ptr);
     let surface = match jptr_to_wlsurface(handle) {
         Some(s) => s,
-        None => return 0,
+        None => {
+            trace_bridge(
+                "maybePointerLock.skip",
+                &format!("\"handle\":{handle},\"reason\":\"missing-surface\""),
+            );
+            return 0;
+        }
     };
+    let owner = instance
+        .state
+        .describe_x11_surface_owner(&surface)
+        .unwrap_or_else(|| "native".into());
+    trace_bridge(
+        "maybePointerLock.entry",
+        &format!(
+            "\"handle\":{handle},\"surface\":{},\"owner\":{}",
+            input_trace::json(&format!("{:?}", surface.id())),
+            input_trace::json(&owner)
+        ),
+    );
 
     if debug_input_enabled() {
-        let owner = instance
-            .state
-            .describe_x11_surface_owner(&surface)
-            .unwrap_or_else(|| "native".into());
         println!(
             "WLC input bridge maybePointerLock target={:?} owner={owner}",
             surface.id()
         );
     }
-    instance.state.seat.pointer_lock(&surface) as jboolean
+    let result = instance.state.seat.pointer_lock(&surface) as jboolean;
+    trace_bridge("maybePointerLock.return", &format!("\"result\":{result}"));
+    result
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
@@ -1179,6 +1242,7 @@ pub extern "system" fn pointerUnlock<'l>(
     ptr: jlong,
 ) {
     let instance = jptr_to_instance(ptr);
+    trace_bridge("pointerUnlock.entry", "");
 
     if debug_input_enabled() {
         println!("WLC input bridge pointerUnlock");
@@ -1194,6 +1258,7 @@ pub extern "system" fn pointerLeave<'l>(
     ptr: jlong,
 ) {
     let instance = jptr_to_instance(ptr);
+    trace_bridge("pointerLeave.entry", "");
     if debug_input_enabled() {
         println!("WLC input bridge pointerLeave");
     }
@@ -1222,7 +1287,17 @@ pub extern "system" fn pointerButton<'l>(
             "WLC input bridge pointerButton button={button} state={state:?}"
         );
     }
-    instance.state.seat.pointer_button(button as u32, state) as jint
+    trace_bridge(
+        "pointerButton.entry",
+        &format!(
+            "\"button\":{button},\"state\":{}",
+            input_trace::json(&format!("{state:?}"))
+        ),
+    );
+    let serial =
+        instance.state.seat.pointer_button(button as u32, state) as jint;
+    trace_bridge("pointerButton.return", &format!("\"serial\":{serial}"));
+    serial
 }
 
 #[unsafe(export_name = "Java_dev_evvie_waylandcraft_bridge_WaylandCraftBridge_\
@@ -1247,6 +1322,13 @@ pub extern "system" fn pointerAxis<'l>(
     if debug_input_enabled() {
         println!("WLC input bridge pointerAxis axis={axis:?} value={value:.2}");
     }
+    trace_bridge(
+        "pointerAxis.entry",
+        &format!(
+            "\"axis\":{},\"value\":{value:.4}",
+            input_trace::json(&format!("{axis:?}"))
+        ),
+    );
     instance.state.seat.pointer_axis(axis, value);
 }
 
@@ -1333,6 +1415,18 @@ pub extern "system" fn keyboardFocus<'l>(
     };
 
     let surface = toplevel.as_ref().map(|t| t.wl_surface().clone());
+    trace_bridge(
+        "keyboardFocus.entry",
+        &format!(
+            "\"handle\":{handle},\"surface\":{}",
+            input_trace::json(
+                &surface
+                    .as_ref()
+                    .map(surface_label_for_bridge)
+                    .unwrap_or_else(|| "none".into())
+            )
+        ),
+    );
 
     // Update the client gaining keyboard focus with the clipboard contents
     let client = surface.as_ref().and_then(|s| s.client());
@@ -1391,6 +1485,7 @@ pub extern "system" fn keyboardActivate<'l>(
     ptr: jlong,
 ) {
     let instance = jptr_to_instance(ptr);
+    trace_bridge("keyboardActivate.entry", "");
     instance.state.seat.activate_keyboard();
 }
 
@@ -1402,6 +1497,7 @@ pub extern "system" fn keyboardDeactivate<'l>(
     ptr: jlong,
 ) {
     let instance = jptr_to_instance(ptr);
+    trace_bridge("keyboardDeactivate.entry", "");
     instance.state.seat.deactivate_keyboard();
 }
 
@@ -1424,6 +1520,21 @@ pub extern "system" fn keyboardInput<'l>(
             return;
         }
     };
+    let x11_focus = instance
+        .state
+        .focused_x11_window
+        .as_ref()
+        .map(|window| instance.state.describe_x11_window(window))
+        .unwrap_or_else(|| "none".into());
+    trace_bridge(
+        "keyboardInput.entry",
+        &format!(
+            "\"scancode\":{scancode},\"action\":{},\"wl_state\":{},\"x11_focus\":{}",
+            action,
+            input_trace::json(&format!("{wl_action:?}")),
+            input_trace::json(&x11_focus)
+        ),
+    );
 
     let x11_target = instance
         .state
@@ -1445,6 +1556,14 @@ pub extern "system" fn keyboardInput<'l>(
                 backend_action
             );
         }
+        trace_bridge(
+            "keyboardInput.xwayland",
+            &format!(
+                "\"target\":{},\"scancode\":{scancode},\"state\":{}",
+                input_trace::json(&instance.state.describe_x11_window(&target)),
+                input_trace::json(&format!("{backend_action:?}"))
+            ),
+        );
         keyboard.set_focus(
             &mut instance.state,
             Some(target),
@@ -1464,6 +1583,13 @@ pub extern "system" fn keyboardInput<'l>(
                 scancode, wl_action
             );
         }
+        trace_bridge(
+            "keyboardInput.wayland_shadow",
+            &format!(
+                "\"scancode\":{scancode},\"state\":{}",
+                input_trace::json(&format!("{wl_action:?}"))
+            ),
+        );
         instance.state.seat.keyboard_key(scancode, wl_action);
     } else {
         if debug_input_enabled() {
@@ -1472,6 +1598,13 @@ pub extern "system" fn keyboardInput<'l>(
                 scancode, wl_action
             );
         }
+        trace_bridge(
+            "keyboardInput.wayland_only",
+            &format!(
+                "\"scancode\":{scancode},\"state\":{}",
+                input_trace::json(&format!("{wl_action:?}"))
+            ),
+        );
         instance.state.seat.keyboard_key(scancode, wl_action);
     }
 }
@@ -1486,6 +1619,10 @@ pub extern "system" fn keyboardUpdate<'l>(
     press: jboolean,
 ) {
     let instance = jptr_to_instance(ptr);
+    trace_bridge(
+        "keyboardUpdate.entry",
+        &format!("\"scancode\":{scancode},\"pressed\":{}", press == JNI_TRUE),
+    );
     instance
         .state
         .seat
@@ -2088,6 +2225,19 @@ pub extern "system" fn x11WindowFocus<'l>(
     let instance = jptr_to_instance(ptr);
     let window = jptr_to_x11window(handle).clone();
     let surface = window.wl_surface();
+    trace_bridge(
+        "x11WindowFocus.entry",
+        &format!(
+            "\"handle\":{handle},\"window\":{},\"surface\":{}",
+            input_trace::json(&instance.state.describe_x11_window(&window)),
+            input_trace::json(
+                &surface
+                    .as_ref()
+                    .map(surface_label_for_bridge)
+                    .unwrap_or_else(|| "none".into())
+            )
+        ),
+    );
 
     if debug_input_enabled() {
         println!(

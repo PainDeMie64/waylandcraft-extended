@@ -74,6 +74,7 @@ use x11rb::wrapper::ConnectionExt as _;
 mod bridge;
 mod ddm;
 mod egl;
+mod input_trace;
 mod output;
 mod process;
 mod seat;
@@ -95,6 +96,9 @@ fn debug_x11_enabled() -> bool {
 }
 
 pub(crate) fn debug_input_enabled() -> bool {
+    if input_trace::enabled() {
+        return true;
+    }
     if DEBUG_INPUT_OVERRIDE.load(Ordering::Relaxed) {
         return true;
     }
@@ -357,6 +361,11 @@ impl WLCState {
             }
             if debug_input_enabled() {
                 println!("WLC input X11 track {label}");
+                input_trace::event(
+                    "native-xwm",
+                    "track",
+                    &format!("\"window\":{}", input_trace::json(&label)),
+                );
                 if let Some(probe) = &self.x11_input_probe {
                     probe.watch_window(
                         window.window_id(),
@@ -384,6 +393,14 @@ impl WLCState {
                 println!(
                     "WLC input X11 focus cleared removed {}",
                     self.describe_x11_window(window)
+                );
+                input_trace::event(
+                    "native-xwm",
+                    "focus_cleared",
+                    &format!(
+                        "\"reason\":\"removed\",\"window\":{}",
+                        input_trace::json(&self.describe_x11_window(window))
+                    ),
                 );
             }
             self.focused_x11_window = None;
@@ -746,6 +763,14 @@ impl XwmHandler for WLCState {
                 self.describe_x11_window(&window)
             );
         }
+        input_trace::event(
+            "native-xwm",
+            "map_window_request",
+            &format!(
+                "\"window\":{}",
+                input_trace::json(&self.describe_x11_window(&window))
+            ),
+        );
         let _ = window.set_mapped(true);
         self.track_x11_window(window.clone());
         let geometry = if window.is_fullscreen() {
@@ -773,6 +798,14 @@ impl XwmHandler for WLCState {
         if debug_x11_enabled() {
             eprintln!("WLC X11 unmapped {}", self.describe_x11_window(&window));
         }
+        input_trace::event(
+            "native-xwm",
+            "unmapped_window",
+            &format!(
+                "\"window\":{}",
+                input_trace::json(&self.describe_x11_window(&window))
+            ),
+        );
         self.untrack_x11_window(&window);
         if !window.is_override_redirect() {
             let _ = window.set_mapped(false);
@@ -786,6 +819,14 @@ impl XwmHandler for WLCState {
                 self.describe_x11_window(&window)
             );
         }
+        input_trace::event(
+            "native-xwm",
+            "destroyed_window",
+            &format!(
+                "\"window\":{}",
+                input_trace::json(&self.describe_x11_window(&window))
+            ),
+        );
         self.cleanup_destroyed_x11_root_refs(
             window.window_id(),
             window.mapped_window_id(),
@@ -835,6 +876,19 @@ impl XwmHandler for WLCState {
                 applied
             );
         }
+        input_trace::event(
+            "native-xwm",
+            "configure_request",
+            &format!(
+                "\"window\":{},\"requested_x\":{},\"requested_y\":{},\"requested_w\":{},\"requested_h\":{},\"applied\":{}",
+                input_trace::json(&self.describe_x11_window(&window)),
+                input_trace::json(&format!("{x:?}")),
+                input_trace::json(&format!("{y:?}")),
+                input_trace::json(&format!("{w:?}")),
+                input_trace::json(&format!("{h:?}")),
+                input_trace::json(&format!("{applied:?}"))
+            ),
+        );
         let _ = window.configure(Some(applied));
     }
 
@@ -879,6 +933,15 @@ impl XwmHandler for WLCState {
                 geometry
             );
         }
+        input_trace::event(
+            "native-xwm",
+            "fullscreen_request",
+            &format!(
+                "\"window\":{},\"geometry\":{}",
+                input_trace::json(&self.describe_x11_window(&window)),
+                input_trace::json(&format!("{geometry:?}"))
+            ),
+        );
         let _ = window.set_fullscreen(true);
         let _ = window.configure(Some(geometry));
     }

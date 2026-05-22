@@ -19,6 +19,7 @@ import dev.evvie.waylandcraft.bridge.WLCToplevel;
 import dev.evvie.waylandcraft.bridge.WLCX11Window;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.Size;
+import dev.evvie.waylandcraft.debug.InputTrace;
 import dev.evvie.waylandcraft.grabs.WindowGrab;
 import dev.evvie.waylandcraft.input.ShortcutAction;
 import dev.evvie.waylandcraft.input.ShortcutBinding;
@@ -554,6 +555,7 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+		InputTrace.currentOrBegin("wm.mouse_click", "\"button\":" + event.button() + ",\"x\":" + event.x() + ",\"y\":" + event.y() + ",\"double\":" + doubleClick + ",\"focused\":" + InputTrace.s(describeWindow(focused)));
 		if(controlsMode) return super.mouseClicked(event, doubleClick) || true;
 		if(resizeMode) return true;
 		
@@ -563,6 +565,7 @@ public class WindowManagerScreen extends Screen {
 		double y = event.y() * guiScale;
 		
 		HoveredSurface hovered = surfaceUnderPointer(x, y);
+		InputTrace.event("wm", "mouse_click.hover", "\"hovered\":" + InputTrace.s(hovered == null ? "none" : describeWindow(hovered.element.window)) + ",\"surface_debug\":" + (hovered == null ? 0 : hovered.surface.getDebugHandle()) + ",\"x\":" + x + ",\"y\":" + y);
 		if(implicitGrab == null && hovered != null) {
 			implicitGrab = new ImplicitGrab(hovered);
 		}
@@ -573,6 +576,7 @@ public class WindowManagerScreen extends Screen {
 			else logImplicitGrabMissing("wm-click", event.button());
 
 			implicitGrab.pressedMouseButtons.add(event.button());
+			InputTrace.event("wm", "mouse_click.forward", "\"button\":" + event.button() + ",\"target\":" + InputTrace.s(target == null ? "unknown" : describeWindow(target.element.window)));
 			wlc.bridge.sendButton(0x110 + event.button(), 1);
 			
 			return true;
@@ -583,6 +587,7 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean mouseReleased(MouseButtonEvent event) {
+		InputTrace.currentOrBegin("wm.mouse_release", "\"button\":" + event.button() + ",\"x\":" + event.x() + ",\"y\":" + event.y() + ",\"focused\":" + InputTrace.s(describeWindow(focused)));
 		if(controlsMode) return super.mouseReleased(event) || true;
 		if(resizeMode) {
 			exitResizeMode();
@@ -599,6 +604,7 @@ public class WindowManagerScreen extends Screen {
 			else logImplicitGrabMissing("wm-release", event.button());
 
 			implicitGrab.pressedMouseButtons.remove(event.button());
+			InputTrace.event("wm", "mouse_release.forward", "\"button\":" + event.button() + ",\"target\":" + InputTrace.s(target == null ? "unknown" : describeWindow(target.element.window)));
 			wlc.bridge.sendButton(0x110 + event.button(), 0);
 			
 			if(implicitGrab.pressedMouseButtons.isEmpty()) implicitGrab = null;
@@ -611,6 +617,7 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean keyPressed(KeyEvent event) {
+		InputTrace.currentOrBegin("wm.key_press", "\"key\":" + event.key() + ",\"scancode\":" + event.scancode() + ",\"modifiers\":" + event.modifiers() + ",\"focused\":" + InputTrace.s(describeWindow(focused)));
 		if(controlsMode) return keyPressedControls(event);
 		if(event.key() == GLFW.GLFW_KEY_ESCAPE) {
 			this.onClose();
@@ -624,6 +631,7 @@ public class WindowManagerScreen extends Screen {
 		// Forward key press to current window
 		if(focused != null) {
 			int scancode = WaylandCraft.correctScancode(event.scancode());
+			InputTrace.event("wm", "key_press.forward", "\"scancode\":" + scancode + ",\"focused\":" + InputTrace.s(describeWindow(focused)));
 			wlc.bridge.pressKey(scancode);
 			return true;
 		}
@@ -633,6 +641,7 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean keyReleased(KeyEvent event) {
+		InputTrace.currentOrBegin("wm.key_release", "\"key\":" + event.key() + ",\"scancode\":" + event.scancode() + ",\"modifiers\":" + event.modifiers() + ",\"focused\":" + InputTrace.s(describeWindow(focused)));
 		if(controlsMode) return keyReleasedControls(event);
 		if(resizeMode) return true;
 		
@@ -640,6 +649,7 @@ public class WindowManagerScreen extends Screen {
 		
 		if(focused != null) {
 			int scancode = WaylandCraft.correctScancode(event.scancode());
+			InputTrace.event("wm", "key_release.forward", "\"scancode\":" + scancode + ",\"focused\":" + InputTrace.s(describeWindow(focused)));
 			wlc.bridge.releaseKey(scancode);
 			return true;
 		}
@@ -649,6 +659,7 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+		InputTrace.currentOrBegin("wm.scroll", "\"x\":" + mouseX + ",\"y\":" + mouseY + ",\"scroll_x\":" + scrollX + ",\"scroll_y\":" + scrollY + ",\"focused\":" + InputTrace.s(describeWindow(focused)));
 		if(controlsMode) return true;
 		if(resizeMode) return true;
 		
@@ -660,6 +671,7 @@ public class WindowManagerScreen extends Screen {
 		HoveredSurface hovered = surfaceUnderPointer(mouseX, mouseY);
 		
 		if(hovered != null) {
+			InputTrace.event("wm", "scroll.forward", "\"target\":" + InputTrace.s(describeWindow(hovered.element.window)) + ",\"surface_debug\":" + hovered.surface.getDebugHandle() + ",\"vertical\":" + (-scrollY * 10) + ",\"horizontal\":" + (-scrollX * 10));
 			focusHoveredSurface(hovered, "wm-scroll");
 			wlc.bridge.sendScroll(0, -scrollY * 10);
 			wlc.bridge.sendScroll(1, -scrollX * 10);
@@ -850,6 +862,7 @@ public class WindowManagerScreen extends Screen {
 		if(WaylandCraft.DEBUG_WINDOWS) {
 			WaylandCraft.LOGGER.info("WLC wm pointer route reason={} window={} surface={} rel={}x{}", reason, describeWindow(hovered.element.window), hovered.surface.getDebugHandle(), hovered.rx, hovered.ry);
 		}
+		InputTrace.event("wm", "focus_hovered_surface", "\"reason\":" + InputTrace.s(reason) + ",\"window\":" + InputTrace.s(describeWindow(hovered.element.window)) + ",\"surface_debug\":" + hovered.surface.getDebugHandle() + ",\"x\":" + hovered.rx + ",\"y\":" + hovered.ry);
 
 		wlc.bridge.sendMotionRefocus(hovered.surface, hovered.rx, hovered.ry, reason);
 		if(root != null) wlc.bridge.focusSurface(root);

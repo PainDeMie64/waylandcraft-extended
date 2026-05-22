@@ -1,5 +1,5 @@
 use crate::utils::{get_time, new_serial, to_fixed2};
-use crate::{WLCState, debug_input_enabled};
+use crate::{WLCState, debug_input_enabled, input_trace};
 use smithay::{
     reexports::{
         wayland_protocols::wp::cursor_shape::v1::server::{
@@ -106,6 +106,10 @@ fn resource_label<R: Resource>(resource: &R) -> String {
 
 fn surface_label(surface: &WlSurface) -> String {
     resource_label(surface)
+}
+
+fn trace_seat(event_type: &str, fields: &str) {
+    input_trace::event("native-seat", event_type, fields);
 }
 
 // Keyboard RMLVO keymap specifier
@@ -227,6 +231,18 @@ impl WLCSeatState {
                 "WLC input wl_pointer focus-request serial={serial:?} target={target} x={x:.2} y={y:.2}"
             );
         }
+        trace_seat(
+            "wl_pointer.focus_request",
+            &format!(
+                "\"serial\":{},\"target\":{},\"x\":{x:.4},\"y\":{y:.4}",
+                serial,
+                input_trace::json(
+                    &surface
+                        .map(surface_label)
+                        .unwrap_or_else(|| "none".into())
+                )
+            ),
+        );
 
         // Unfocus any pointers currently focused on the wrong surface
         self.for_all_pointers(|pointer, data| {
@@ -247,6 +263,15 @@ impl WLCSeatState {
                     );
                 }
                 pointer.leave(serial, focus);
+                trace_seat(
+                    "wl_pointer.leave",
+                    &format!(
+                        "\"pointer\":{},\"focus\":{},\"serial\":{}",
+                        input_trace::json(&resource_label(pointer)),
+                        input_trace::json(&surface_label(focus)),
+                        serial
+                    ),
+                );
                 self.pointer_frame(pointer);
                 data.focus = None;
                 data.last_enter = None;
@@ -263,6 +288,14 @@ impl WLCSeatState {
         self.for_all_pointers(|pointer, data| {
             // Already correct focus
             if self.pointer_focus_eq(data, surface) {
+                trace_seat(
+                    "wl_pointer.enter_skip",
+                    &format!(
+                        "\"reason\":\"already-focused\",\"pointer\":{},\"target\":{}",
+                        input_trace::json(&resource_label(pointer)),
+                        input_trace::json(&surface_label(surface))
+                    ),
+                );
                 if debug_input_enabled() {
                     println!(
                         "WLC input wl_pointer enter-skip already-focused pointer={} target={}",
@@ -276,6 +309,14 @@ impl WLCSeatState {
 
             // Client does not own surface
             if surface.client() != pointer.client() {
+                trace_seat(
+                    "wl_pointer.enter_skip",
+                    &format!(
+                        "\"reason\":\"client-mismatch\",\"pointer\":{},\"target\":{}",
+                        input_trace::json(&resource_label(pointer)),
+                        input_trace::json(&surface_label(surface))
+                    ),
+                );
                 if debug_input_enabled() {
                     println!(
                         "WLC input wl_pointer enter-skip client-mismatch pointer={} target={}",
@@ -294,6 +335,15 @@ impl WLCSeatState {
                 );
             }
             pointer.enter(serial, surface, x, y);
+            trace_seat(
+                "wl_pointer.enter",
+                &format!(
+                    "\"pointer\":{},\"target\":{},\"serial\":{},\"x\":{x:.4},\"y\":{y:.4}",
+                    input_trace::json(&resource_label(pointer)),
+                    input_trace::json(&surface_label(surface)),
+                    serial
+                ),
+            );
             self.pointer_frame(pointer);
             data.focus = Some(surface.clone());
             data.last_enter = Some(serial);
@@ -325,6 +375,13 @@ impl WLCSeatState {
         self.for_all_pointers(|pointer, data| {
             // Pointer does not hold focus
             if data.focus.is_none() {
+                trace_seat(
+                    "wl_pointer.motion_skip",
+                    &format!(
+                        "\"reason\":\"no-focus\",\"pointer\":{},\"x\":{x:.4},\"y\":{y:.4}",
+                        input_trace::json(&resource_label(pointer))
+                    ),
+                );
                 if debug_input_enabled() {
                     println!(
                         "WLC input wl_pointer motion-skip no-focus pointer={} x={x:.2} y={y:.2}",
@@ -350,6 +407,16 @@ impl WLCSeatState {
                 );
             }
             pointer.motion(time, x, y);
+            trace_seat(
+                "wl_pointer.motion",
+                &format!(
+                    "\"pointer\":{},\"focus\":{},\"time\":{time},\"x\":{x:.4},\"y\":{y:.4}",
+                    input_trace::json(&resource_label(pointer)),
+                    input_trace::json(
+                        &data.focus.as_ref().map(surface_label).unwrap_or_else(|| "none".into())
+                    )
+                ),
+            );
             self.pointer_frame(pointer);
             data.last_motion = Some(pos);
         });
@@ -359,6 +426,13 @@ impl WLCSeatState {
     pub fn pointer_relative_motion(&self, dx: f64, dy: f64) {
         self.for_all_pointers(|pointer, data| {
             if data.focus.is_none() {
+                trace_seat(
+                    "wl_pointer.relative_skip",
+                    &format!(
+                        "\"reason\":\"no-focus\",\"pointer\":{},\"dx\":{dx:.4},\"dy\":{dy:.4}",
+                        input_trace::json(&resource_label(pointer))
+                    ),
+                );
                 if debug_input_enabled() {
                     println!(
                         "WLC input wl_pointer relative-skip no-focus pointer={} dx={dx:.2} dy={dy:.2}",
@@ -380,6 +454,17 @@ impl WLCSeatState {
             }
             for relative_pointer in &data.relative_pointers {
                 let time = (get_time() as u64) * 1000; // ms to µs
+                trace_seat(
+                    "wl_pointer.relative",
+                    &format!(
+                        "\"pointer\":{},\"focus\":{},\"relative_pointer\":{},\"dx\":{dx:.4},\"dy\":{dy:.4}",
+                        input_trace::json(&resource_label(pointer)),
+                        input_trace::json(
+                            &data.focus.as_ref().map(surface_label).unwrap_or_else(|| "none".into())
+                        ),
+                        input_trace::json(&resource_label(relative_pointer))
+                    ),
+                );
                 relative_pointer.relative_motion(
                     (time >> 32) as u32,        // utime_hi
                     (time & 0xffffffff) as u32, // utime_lo
@@ -396,6 +481,15 @@ impl WLCSeatState {
         let serial = new_serial();
         self.for_all_pointers(|pointer, data| {
             if data.focus.is_none() {
+                trace_seat(
+                    "wl_pointer.button_skip",
+                    &format!(
+                        "\"reason\":\"no-focus\",\"pointer\":{},\"button\":{button},\"state\":{},\"serial\":{}",
+                        input_trace::json(&resource_label(pointer)),
+                        input_trace::json(&format!("{state:?}")),
+                        serial
+                    ),
+                );
                 if debug_input_enabled() {
                     println!(
                         "WLC input wl_pointer button-skip no-focus pointer={} button={button} state={state:?} serial={serial:?}",
@@ -417,6 +511,18 @@ impl WLCSeatState {
                 );
             }
             pointer.button(serial, get_time(), button, state);
+            trace_seat(
+                "wl_pointer.button",
+                &format!(
+                    "\"pointer\":{},\"focus\":{},\"button\":{button},\"state\":{},\"serial\":{}",
+                    input_trace::json(&resource_label(pointer)),
+                    input_trace::json(
+                        &data.focus.as_ref().map(surface_label).unwrap_or_else(|| "none".into())
+                    ),
+                    input_trace::json(&format!("{state:?}")),
+                    serial
+                ),
+            );
             self.pointer_frame(pointer);
         });
         serial
@@ -448,6 +554,13 @@ impl WLCSeatState {
     }
 
     pub fn keyboard_update_xkb(&mut self, key: u32, pressed: bool) {
+        trace_seat(
+            "wl_keyboard.xkb_update",
+            &format!(
+                "\"key\":{key},\"pressed\":{pressed},\"pressed_before\":{}",
+                self.pressed_keys.len()
+            ),
+        );
         let dir = match pressed {
             true => xkb::KeyDirection::Down,
             false => xkb::KeyDirection::Up,
@@ -464,10 +577,27 @@ impl WLCSeatState {
 
     pub fn keyboard_focus(&mut self, surface: WlSurface) {
         if !surface.is_alive() {
+            trace_seat(
+                "wl_keyboard.focus_skip",
+                &format!(
+                    "\"reason\":\"dead-surface\",\"surface\":{}",
+                    input_trace::json(&surface_label(&surface))
+                ),
+            );
             return;
         };
         let client = surface.client().unwrap();
         let serial = new_serial();
+        trace_seat(
+            "wl_keyboard.focus_request",
+            &format!(
+                "\"surface\":{},\"serial\":{},\"kb_active\":{},\"pressed_count\":{}",
+                input_trace::json(&surface_label(&surface)),
+                serial,
+                self.kb_active,
+                self.pressed_keys.len()
+            ),
+        );
 
         self.for_all_keyboards(|keyboard, data| {
             let keyboard_client = keyboard.client().unwrap();
@@ -475,6 +605,15 @@ impl WLCSeatState {
             // If WlKeyboard belongs to different client, make it lose focus
             if keyboard_client != client {
                 if let Some(focus) = &data.focus {
+                    trace_seat(
+                        "wl_keyboard.leave",
+                        &format!(
+                            "\"reason\":\"client-mismatch\",\"keyboard\":{},\"focus\":{},\"serial\":{}",
+                            input_trace::json(&resource_label(keyboard)),
+                            input_trace::json(&surface_label(focus)),
+                            serial
+                        ),
+                    );
                     keyboard.leave(serial, focus);
                     data.focus = None;
                 }
@@ -487,8 +626,25 @@ impl WLCSeatState {
             if let Some(focus) = &data.focus {
                 if *focus == surface {
                     // Surface already focused
+                    trace_seat(
+                        "wl_keyboard.enter_skip",
+                        &format!(
+                            "\"reason\":\"already-focused\",\"keyboard\":{},\"surface\":{}",
+                            input_trace::json(&resource_label(keyboard)),
+                            input_trace::json(&surface_label(&surface))
+                        ),
+                    );
                     return;
                 }
+                trace_seat(
+                    "wl_keyboard.leave",
+                    &format!(
+                        "\"reason\":\"replace-focus\",\"keyboard\":{},\"focus\":{},\"serial\":{}",
+                        input_trace::json(&resource_label(keyboard)),
+                        input_trace::json(&surface_label(focus)),
+                        serial
+                    ),
+                );
                 keyboard.leave(serial, focus);
                 data.focus = None;
             }
@@ -497,6 +653,17 @@ impl WLCSeatState {
             let pressed = self.serialize_pressed_keys();
 
             keyboard.enter(serial, &surface, pressed);
+            trace_seat(
+                "wl_keyboard.enter",
+                &format!(
+                    "\"keyboard\":{},\"surface\":{},\"serial\":{},\"kb_active\":{},\"pressed_bytes\":{}",
+                    input_trace::json(&resource_label(keyboard)),
+                    input_trace::json(&surface_label(&surface)),
+                    serial,
+                    self.kb_active,
+                    self.serialize_pressed_keys().len()
+                ),
+            );
             data.focus = Some(surface.clone());
 
             self.send_modifiers(keyboard, serial);
@@ -533,19 +700,35 @@ impl WLCSeatState {
 
     pub fn activate_keyboard(&mut self) {
         if self.kb_active {
+            trace_seat(
+                "wl_keyboard.activate_skip",
+                "\"reason\":\"already-active\"",
+            );
             return;
         }
 
         self.kb_active = true;
+        trace_seat(
+            "wl_keyboard.activate",
+            &format!("\"pressed_count\":{}", self.pressed_keys.len()),
+        );
         self.keyboard_refocus();
     }
 
     pub fn deactivate_keyboard(&mut self) {
         if !self.kb_active {
+            trace_seat(
+                "wl_keyboard.deactivate_skip",
+                "\"reason\":\"already-inactive\"",
+            );
             return;
         }
 
         self.kb_active = false;
+        trace_seat(
+            "wl_keyboard.deactivate",
+            &format!("\"pressed_count\":{}", self.pressed_keys.len()),
+        );
         self.keyboard_refocus();
     }
 
@@ -581,13 +764,44 @@ impl WLCSeatState {
 
     pub fn keyboard_key(&self, key: u32, state: KeyState) {
         if !self.kb_active {
+            trace_seat(
+                "wl_keyboard.key_skip",
+                &format!(
+                    "\"reason\":\"inactive\",\"key\":{key},\"state\":{}",
+                    input_trace::json(&format!("{state:?}"))
+                ),
+            );
             return;
         }
         let serial = new_serial();
         self.for_all_keyboards(|keyboard, data| {
             if data.focus.is_some() {
+                trace_seat(
+                    "wl_keyboard.key",
+                    &format!(
+                        "\"keyboard\":{},\"focus\":{},\"key\":{},\"wire_key\":{},\"state\":{},\"serial\":{}",
+                        input_trace::json(&resource_label(keyboard)),
+                        input_trace::json(
+                            &data.focus.as_ref().map(surface_label).unwrap_or_else(|| "none".into())
+                        ),
+                        key,
+                        key.saturating_sub(8),
+                        input_trace::json(&format!("{state:?}")),
+                        serial
+                    ),
+                );
                 keyboard.key(serial, get_time(), key - 8, state);
                 self.send_modifiers(keyboard, serial);
+            } else {
+                trace_seat(
+                    "wl_keyboard.key_skip",
+                    &format!(
+                        "\"reason\":\"no-focus\",\"keyboard\":{},\"key\":{key},\"state\":{},\"serial\":{}",
+                        input_trace::json(&resource_label(keyboard)),
+                        input_trace::json(&format!("{state:?}")),
+                        serial
+                    ),
+                );
             }
         });
     }
@@ -595,6 +809,15 @@ impl WLCSeatState {
     pub fn pointer_unlock(&self) {
         self.for_all_pointers(|pointer, data| {
             if let Some(lock) = &mut data.lock {
+                trace_seat(
+                    "constraint.unlock",
+                    &format!(
+                        "\"pointer\":{},\"surface\":{},\"active\":{}",
+                        input_trace::json(&resource_label(pointer)),
+                        input_trace::json(&surface_label(&lock.surface)),
+                        lock.active
+                    ),
+                );
                 if debug_input_enabled() {
                     println!(
                         "WLC input constraint unlock pointer={} surface={} active={}",
@@ -608,6 +831,13 @@ impl WLCSeatState {
                 }
                 lock.active = false;
             } else if debug_input_enabled() {
+                trace_seat(
+                    "constraint.unlock_skip",
+                    &format!(
+                        "\"reason\":\"no-lock\",\"pointer\":{}",
+                        input_trace::json(&resource_label(pointer))
+                    ),
+                );
                 println!(
                     "WLC input constraint unlock pointer={} no-lock",
                     resource_label(pointer)
@@ -617,12 +847,27 @@ impl WLCSeatState {
     }
 
     pub fn pointer_lock(&self, surface: &WlSurface) -> bool {
+        trace_seat(
+            "constraint.lock_request",
+            &format!(
+                "\"surface\":{}",
+                input_trace::json(&surface_label(surface))
+            ),
+        );
         for pointer in &self.pointers {
             let mut locked = false;
             with_pointer_data(pointer, |data| {
                 if let Some(lock) = &mut data.lock {
                     if lock.surface == *surface {
                         if !lock.active {
+                            trace_seat(
+                                "constraint.lock_activate",
+                                &format!(
+                                    "\"pointer\":{},\"surface\":{}",
+                                    input_trace::json(&resource_label(pointer)),
+                                    input_trace::json(&surface_label(surface))
+                                ),
+                            );
                             if debug_input_enabled() {
                                 println!(
                                     "WLC input constraint lock-activate pointer={} surface={}",
@@ -635,6 +880,17 @@ impl WLCSeatState {
                         }
                         locked = true;
                     } else if lock.active {
+                        trace_seat(
+                            "constraint.lock_deactivate",
+                            &format!(
+                                "\"pointer\":{},\"old_surface\":{},\"new_surface\":{}",
+                                input_trace::json(&resource_label(pointer)),
+                                input_trace::json(&surface_label(
+                                    &lock.surface
+                                )),
+                                input_trace::json(&surface_label(surface))
+                            ),
+                        );
                         if debug_input_enabled() {
                             println!(
                                 "WLC input constraint lock-deactivate pointer={} old_surface={} new_surface={}",
@@ -650,9 +906,24 @@ impl WLCSeatState {
             });
 
             if locked {
+                trace_seat(
+                    "constraint.lock_return",
+                    &format!(
+                        "\"result\":true,\"pointer\":{},\"surface\":{}",
+                        input_trace::json(&resource_label(pointer)),
+                        input_trace::json(&surface_label(surface))
+                    ),
+                );
                 return true;
             }
         }
+        trace_seat(
+            "constraint.lock_return",
+            &format!(
+                "\"result\":false,\"surface\":{}",
+                input_trace::json(&surface_label(surface))
+            ),
+        );
         if debug_input_enabled() {
             println!(
                 "WLC input constraint lock-request no-matching-lock surface={}",

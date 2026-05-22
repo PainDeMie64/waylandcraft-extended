@@ -18,6 +18,7 @@ import org.lwjgl.glfw.GLFWNativeEGL;
 import dev.evvie.waylandcraft.CursorShape;
 import dev.evvie.waylandcraft.WaylandCraft;
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow.SurfaceGeometry;
+import dev.evvie.waylandcraft.debug.InputTrace;
 import dev.evvie.waylandcraft.debug.TextureDebug;
 import dev.evvie.waylandcraft.desktop.RawDesktopEntry;
 import dev.evvie.waylandcraft.render.BufferTexture;
@@ -94,6 +95,7 @@ public class WaylandCraftBridge {
 		}
 
 		long handle = init(GLFW.Functions.GetProcAddress, eglDisplay);
+		if(WaylandCraft.INPUT_TRACE) setNativeInputTracePath(InputTrace.nativePath().toString());
 		setNativeDebugInput(WaylandCraft.DEBUG_WINDOWS || WaylandCraft.DEBUG_INPUT);
 		WaylandCraftBridge bridge = new WaylandCraftBridge(handle);
 		Runtime.getRuntime().addShutdownHook(new Thread(
@@ -669,7 +671,7 @@ public class WaylandCraftBridge {
 	}
 
 	public void sendMotion(double x, double y) {
-		pointerMotion(instance, x, y);
+		withNativeTrace("bridge.pointerMotion", "\"x\":" + x + ",\"y\":" + y, () -> pointerMotion(instance, x, y));
 	}
 
 	public void sendMotionRefocus(WLCSurface surface, double x, double y) {
@@ -682,11 +684,11 @@ public class WaylandCraftBridge {
 		if(WaylandCraft.DEBUG_WINDOWS) {
 			WaylandCraft.LOGGER.info("WLC pointer native refocus reason={} surface={} x={} y={}", reason, debugLastPointerFocusSurface, x, y);
 		}
-		pointerMotionFocus(instance, surface.getHandle(), x, y);
+		withNativeTrace("bridge.pointerMotionFocus", "\"reason\":" + InputTrace.s(reason) + ",\"surface\":" + surface.getHandle() + ",\"surface_debug\":" + surface.getDebugHandle() + ",\"x\":" + x + ",\"y\":" + y, () -> pointerMotionFocus(instance, surface.getHandle(), x, y));
 	}
 
 	public void sendRelativeMotion(double dx, double dy) {
-		pointerRelMotion(instance, dx, dy);
+		withNativeTrace("bridge.pointerRelMotion", "\"dx\":" + dx + ",\"dy\":" + dy, () -> pointerRelMotion(instance, dx, dy));
 	}
 
 	public void sendMotionOutside() {
@@ -695,26 +697,26 @@ public class WaylandCraftBridge {
 		if(WaylandCraft.DEBUG_WINDOWS) {
 			WaylandCraft.LOGGER.info("WLC pointer native leave");
 		}
-		pointerLeave(instance);
+		withNativeTrace("bridge.pointerLeave", "", () -> pointerLeave(instance));
 	}
 
 	public boolean maybeLockPointer(WLCSurface surface) {
-		return maybePointerLock(instance, surface.getHandle());
+		return withNativeTraceBool("bridge.maybePointerLock", "\"surface\":" + surface.getHandle() + ",\"surface_debug\":" + surface.getDebugHandle(), () -> maybePointerLock(instance, surface.getHandle()));
 	}
 
 	public void unlockPointer() {
-		pointerUnlock(instance);
+		withNativeTrace("bridge.pointerUnlock", "", () -> pointerUnlock(instance));
 	}
 
 	public int sendButton(int button, int state) {
 		if(WaylandCraft.DEBUG_WINDOWS) {
 			WaylandCraft.LOGGER.info("WLC pointer native button button={} state={} focusSurface={} focusReason={}", button, state, debugLastPointerFocusSurface, debugLastPointerFocusReason);
 		}
-		return pointerButton(instance, button, state);
+		return withNativeTraceInt("bridge.pointerButton", "\"button\":" + button + ",\"state\":" + state + ",\"focus_surface_debug\":" + debugLastPointerFocusSurface + ",\"focus_reason\":" + InputTrace.s(debugLastPointerFocusReason), () -> pointerButton(instance, button, state));
 	}
 
 	public void sendScroll(int axis, double value) {
-		pointerAxis(instance, axis, value);
+		withNativeTrace("bridge.pointerAxis", "\"axis\":" + axis + ",\"value\":" + value, () -> pointerAxis(instance, axis, value));
 	}
 
 	public CursorShape getCursorShape() {
@@ -724,7 +726,7 @@ public class WaylandCraftBridge {
 	public void focusSurface(@Nullable WLCToplevel toplevel) {
 		if(toplevel instanceof WLCX11Window) {
 			if(WaylandCraft.DEBUG_INPUT) WaylandCraft.LOGGER.info("WLC input java focus x11 target={}", debugDescribe(toplevel));
-			x11WindowFocus(instance, toplevel.getHandle());
+			withNativeTrace("bridge.x11WindowFocus", "\"target\":" + InputTrace.s(debugDescribe(toplevel)), () -> x11WindowFocus(instance, toplevel.getHandle()));
 
 			focusOrder.remove(toplevel);
 			focusOrder.addLast(toplevel);
@@ -737,7 +739,8 @@ public class WaylandCraftBridge {
 		}
 		if(WaylandCraft.DEBUG_INPUT) WaylandCraft.LOGGER.info("WLC input java focus wayland target={}", debugDescribe(toplevel));
 
-		keyboardFocus(instance, handle);
+		final long focusHandle = handle;
+		withNativeTrace("bridge.keyboardFocus", "\"target\":" + InputTrace.s(debugDescribe(toplevel)) + ",\"handle\":" + focusHandle, () -> keyboardFocus(instance, focusHandle));
 
 		// Make toplevel most recently focused
 		if(toplevel != null) {
@@ -748,12 +751,12 @@ public class WaylandCraftBridge {
 
 	public void activateKeyboard() {
 		if(WaylandCraft.DEBUG_INPUT) WaylandCraft.LOGGER.info("WLC input java keyboard-activate focus={}", debugDescribe(getMostRecentFocus()));
-		keyboardActivate(instance);
+		withNativeTrace("bridge.keyboardActivate", "\"focus\":" + InputTrace.s(debugDescribe(getMostRecentFocus())), () -> keyboardActivate(instance));
 	}
 
 	public void deactivateKeyboard() {
 		if(WaylandCraft.DEBUG_INPUT) WaylandCraft.LOGGER.info("WLC input java keyboard-deactivate focus={}", debugDescribe(getMostRecentFocus()));
-		keyboardDeactivate(instance);
+		withNativeTrace("bridge.keyboardDeactivate", "\"focus\":" + InputTrace.s(debugDescribe(getMostRecentFocus())), () -> keyboardDeactivate(instance));
 	}
 
 	private void updateFocusOrder() {
@@ -777,17 +780,73 @@ public class WaylandCraftBridge {
 
 	public void pressKey(int scancode) {
 		if(WaylandCraft.DEBUG_INPUT) WaylandCraft.LOGGER.info("WLC input java bridge-key state=press scancode={} focus={}", scancode, debugDescribe(getMostRecentFocus()));
-		keyboardInput(instance, scancode, 1);
+		withNativeTrace("bridge.keyboardInput", "\"state\":\"press\",\"scancode\":" + scancode + ",\"focus\":" + InputTrace.s(debugDescribe(getMostRecentFocus())), () -> keyboardInput(instance, scancode, 1));
 	}
 
 	public void releaseKey(int scancode) {
 		if(WaylandCraft.DEBUG_INPUT) WaylandCraft.LOGGER.info("WLC input java bridge-key state=release scancode={} focus={}", scancode, debugDescribe(getMostRecentFocus()));
-		keyboardInput(instance, scancode, 0);
+		withNativeTrace("bridge.keyboardInput", "\"state\":\"release\",\"scancode\":" + scancode + ",\"focus\":" + InputTrace.s(debugDescribe(getMostRecentFocus())), () -> keyboardInput(instance, scancode, 0));
 	}
 
 	public void internalKeyUpdate(int scancode, boolean pressed) {
 		if(WaylandCraft.DEBUG_INPUT) WaylandCraft.LOGGER.info("WLC input java glfw-key state={} scancode={}", pressed ? "press" : "release", scancode);
-		keyboardUpdate(instance, scancode, pressed);
+		withNativeTrace("bridge.keyboardUpdate", "\"pressed\":" + pressed + ",\"scancode\":" + scancode, () -> keyboardUpdate(instance, scancode, pressed));
+	}
+
+	private void withNativeTrace(String eventType, String fields, Runnable action) {
+		if(!WaylandCraft.INPUT_TRACE) {
+			action.run();
+			return;
+		}
+		InputTrace.event("java-bridge", eventType, fieldsWithFocus(fields));
+		setNativeInputTraceCurrent(InputTrace.current());
+		try {
+			action.run();
+		} finally {
+			clearNativeInputTraceCurrent();
+		}
+	}
+
+	private int withNativeTraceInt(String eventType, String fields, IntAction action) {
+		if(!WaylandCraft.INPUT_TRACE) return action.run();
+		InputTrace.event("java-bridge", eventType, fieldsWithFocus(fields));
+		setNativeInputTraceCurrent(InputTrace.current());
+		try {
+			int result = action.run();
+			InputTrace.event("java-bridge", eventType + ".return", fieldsWithFocus(fields + ",\"result\":" + result));
+			return result;
+		} finally {
+			clearNativeInputTraceCurrent();
+		}
+	}
+
+	private boolean withNativeTraceBool(String eventType, String fields, BoolAction action) {
+		if(!WaylandCraft.INPUT_TRACE) return action.run();
+		InputTrace.event("java-bridge", eventType, fieldsWithFocus(fields));
+		setNativeInputTraceCurrent(InputTrace.current());
+		try {
+			boolean result = action.run();
+			InputTrace.event("java-bridge", eventType + ".return", fieldsWithFocus(fields + ",\"result\":" + result));
+			return result;
+		} finally {
+			clearNativeInputTraceCurrent();
+		}
+	}
+
+	private String fieldsWithFocus(String fields) {
+		String prefix = "\"focus\":" + InputTrace.s(debugDescribe(getMostRecentFocus()));
+		if(fields == null || fields.isBlank()) return prefix;
+		return prefix + "," + fields;
+	}
+
+	@FunctionalInterface
+	private interface IntAction {
+		int run();
+	}
+
+	@FunctionalInterface
+	private interface BoolAction {
+		boolean run();
 	}
 
 	private String debugDescribe(@Nullable WLCToplevel toplevel) {
@@ -928,6 +987,9 @@ public class WaylandCraftBridge {
 
 	private static native long init(long glfwGetProcAddress, long eglDisplay);
 	private static native void setNativeDebugInput(boolean enabled);
+	private static native void setNativeInputTracePath(String path);
+	private static native void setNativeInputTraceCurrent(long traceId);
+	private static native void clearNativeInputTraceCurrent();
 	private static native void cleanupLaunchedApps(long instance);
 	private static native void update(long instance);
 	private static native String socket(long instance);
