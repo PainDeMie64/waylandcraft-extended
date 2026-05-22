@@ -20,6 +20,8 @@ import dev.evvie.waylandcraft.bridge.WLCX11Window;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge;
 import dev.evvie.waylandcraft.bridge.WaylandCraftBridge.Size;
 import dev.evvie.waylandcraft.grabs.WindowGrab;
+import dev.evvie.waylandcraft.input.ShortcutAction;
+import dev.evvie.waylandcraft.input.ShortcutBinding;
 import dev.evvie.waylandcraft.mixin.IMouseHandlerMixin;
 import dev.evvie.waylandcraft.render.CursorRenderer;
 import dev.evvie.waylandcraft.render.RenderUtils;
@@ -49,6 +51,13 @@ public class WindowManagerScreen extends Screen {
 	private Button hideButton;
 	private Button pinButton;
 	private Button itemButton;
+	private Button controlsButton;
+	private Button resetControlsButton;
+	private final ArrayList<ShortcutRow> shortcutRows = new ArrayList<>();
+	private boolean controlsMode = false;
+	private @Nullable ShortcutAction recordingShortcut = null;
+	private int recordingModifiers = 0;
+	private int recordingModifierKey = GLFW.GLFW_KEY_UNKNOWN;
 	
 	private boolean resizeMode = false;
 	private WLCToplevel resizeToplevel = null;
@@ -146,13 +155,76 @@ public class WindowManagerScreen extends Screen {
 		itemButton.setTooltipDelay(Duration.ofMillis(700));
 		buttons.add(itemButton);
 
+		controlsButton = Button.builder(Component.literal("Controls"), this::onControlsPressed)
+				.pos(leftMargin, margin)
+				.size(86, buttonHeight)
+				.build();
+		buttons.add(controlsButton);
+
+		resetControlsButton = Button.builder(Component.literal("Reset All"), (button) -> {
+			if(wlc.shortcuts == null) return;
+			wlc.shortcuts.resetAllAndSave();
+			recordingShortcut = null;
+			updateShortcutButtons();
+		})
+				.pos(width - 95, margin)
+				.size(92, buttonHeight)
+				.build();
+		buttons.add(resetControlsButton);
+		buildShortcutRows();
+
 		addRenderableWidget(grabButton);
 		addRenderableWidget(resizeButton);
 		addRenderableWidget(hideButton);
 		addRenderableWidget(pinButton);
 		addRenderableWidget(itemButton);
+		addRenderableWidget(controlsButton);
+		addRenderableWidget(resetControlsButton);
+		for(ShortcutRow row : shortcutRows) {
+			addRenderableWidget(row.bindButton);
+			addRenderableWidget(row.resetButton);
+		}
 		
 		wlc.bridge.activateKeyboard();
+	}
+
+	private void buildShortcutRows() {
+		shortcutRows.clear();
+		int y = topMargin + 18;
+		int bindButtonWidth = Math.min(180, Math.max(110, width / 4));
+		for(ShortcutAction action : ShortcutAction.values()) {
+			ShortcutRow row = new ShortcutRow(
+					action,
+					Button.builder(Component.empty(), (button) -> startRecording(action))
+							.pos(width - bindButtonWidth - 66, y)
+							.size(bindButtonWidth, 18)
+							.build(),
+					Button.builder(Component.literal("Reset"), (button) -> {
+						if(wlc.shortcuts == null) return;
+						wlc.shortcuts.reset(action);
+						if(recordingShortcut == action) recordingShortcut = null;
+						updateShortcutButtons();
+					})
+							.pos(width - 62, y)
+							.size(59, 18)
+							.build());
+			shortcutRows.add(row);
+			y += 22;
+		}
+		updateShortcutButtons();
+	}
+
+	private void startRecording(ShortcutAction action) {
+		recordingShortcut = action;
+		recordingModifiers = 0;
+		recordingModifierKey = GLFW.GLFW_KEY_UNKNOWN;
+		updateShortcutButtons();
+	}
+
+	private void onControlsPressed(Button button) {
+		controlsMode = !controlsMode;
+		recordingShortcut = null;
+		updateShortcutButtons();
 	}
 	
 	private void onGrabPressed(Button button) {
@@ -235,6 +307,14 @@ public class WindowManagerScreen extends Screen {
 			WaylandCraft.LOGGER.info("WLC wm output bounds {}x{} gui={} area={}x{}+{}+{}", outputBoundsWidth, outputBoundsHeight, guiScale, areaWidth, areaHeight, leftMargin, topMargin);
 			debugOutputBoundsWidth = outputBoundsWidth;
 			debugOutputBoundsHeight = outputBoundsHeight;
+		}
+
+		if(controlsMode) {
+			buttons.forEach((b) -> b.setFocused(false));
+			showControlsWidgets();
+			renderControlsPanel(context);
+			super.extractRenderState(context, i, j, f);
+			return;
 		}
 		
 		WLCToplevel[] toplevels = wlc.bridge.getMappedToplevels();
@@ -321,10 +401,56 @@ public class WindowManagerScreen extends Screen {
 			itemButton.active = false;
 		}
 		
-		buttons.forEach((b) -> b.visible = true);
-		selector.visible = true;
+		showWindowWidgets();
 		
 		super.extractRenderState(context, i, j, f);
+	}
+
+	private void showControlsWidgets() {
+		grabButton.visible = false;
+		resizeButton.visible = false;
+		hideButton.visible = false;
+		pinButton.visible = false;
+		itemButton.visible = false;
+		selector.visible = false;
+		controlsButton.visible = true;
+		controlsButton.active = true;
+		controlsButton.setMessage(Component.literal("Windows"));
+		resetControlsButton.visible = true;
+		resetControlsButton.active = true;
+		for(ShortcutRow row : shortcutRows) {
+			row.bindButton.visible = true;
+			row.bindButton.active = true;
+			row.resetButton.visible = true;
+			row.resetButton.active = true;
+		}
+	}
+
+	private void showWindowWidgets() {
+		buttons.forEach((b) -> b.visible = true);
+		controlsButton.setMessage(Component.literal("Controls"));
+		resetControlsButton.visible = false;
+		for(ShortcutRow row : shortcutRows) {
+			row.bindButton.visible = false;
+			row.resetButton.visible = false;
+		}
+		selector.visible = true;
+	}
+
+	private void renderControlsPanel(GuiGraphicsExtractor context) {
+		Font font = Minecraft.getInstance().font;
+		int x = leftMargin + 10;
+		int y = topMargin + 2;
+		context.text(font, "WaylandCraft Controls", x, y, Color.white.getRGB(), true);
+		y = topMargin + 23;
+		for(ShortcutRow row : shortcutRows) {
+			int color = row.action == recordingShortcut ? Color.yellow.getRGB() : Color.lightGray.getRGB();
+			context.text(font, row.action.title, x, y + 5, color, false);
+			y += 22;
+		}
+		if(recordingShortcut != null) {
+			context.text(font, "Press a key or chord. Press Esc to cancel.", x, height - 18, Color.yellow.getRGB(), true);
+		}
 	}
 	
 	@Override
@@ -364,6 +490,7 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public void mouseMoved(double x, double y) {
+		if(controlsMode) return;
 		Size bounds = wlc.bridge.getOutputBounds();
 		
 		x *= guiScale;
@@ -427,6 +554,7 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+		if(controlsMode) return super.mouseClicked(event, doubleClick) || true;
 		if(resizeMode) return true;
 		
 		if(super.mouseClicked(event, doubleClick)) return true;
@@ -455,6 +583,7 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean mouseReleased(MouseButtonEvent event) {
+		if(controlsMode) return super.mouseReleased(event) || true;
 		if(resizeMode) {
 			exitResizeMode();
 			return true;
@@ -482,6 +611,7 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean keyPressed(KeyEvent event) {
+		if(controlsMode) return keyPressedControls(event);
 		if(event.key() == GLFW.GLFW_KEY_ESCAPE) {
 			this.onClose();
 			return true;
@@ -503,6 +633,7 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean keyReleased(KeyEvent event) {
+		if(controlsMode) return keyReleasedControls(event);
 		if(resizeMode) return true;
 		
 		if(super.keyReleased(event)) return true;
@@ -518,6 +649,7 @@ public class WindowManagerScreen extends Screen {
 	
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+		if(controlsMode) return true;
 		if(resizeMode) return true;
 		
 		if(super.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
@@ -545,6 +677,72 @@ public class WindowManagerScreen extends Screen {
 			implicitGrab = null;
 		}
 		wlc.bridge.deactivateKeyboard();
+	}
+
+	private boolean keyPressedControls(KeyEvent event) {
+		if(recordingShortcut != null) {
+			if(event.key() == GLFW.GLFW_KEY_ESCAPE) {
+				recordingShortcut = null;
+				recordingModifiers = 0;
+				recordingModifierKey = GLFW.GLFW_KEY_UNKNOWN;
+				updateShortcutButtons();
+				return true;
+			}
+			int modifier = ShortcutBinding.modifierForKey(event.key());
+			if(modifier != 0) {
+				recordingModifiers |= modifier;
+				recordingModifierKey = event.key();
+				updateShortcutButtons();
+				return true;
+			}
+
+			int modifiers = ShortcutBinding.normalizedModifiers(event.modifiers() | recordingModifiers);
+			wlc.shortcuts.set(recordingShortcut, new ShortcutBinding(event.key(), modifiers));
+			recordingShortcut = null;
+			recordingModifiers = 0;
+			recordingModifierKey = GLFW.GLFW_KEY_UNKNOWN;
+			updateShortcutButtons();
+			return true;
+		}
+
+		if(event.key() == GLFW.GLFW_KEY_ESCAPE) {
+			controlsMode = false;
+			return true;
+		}
+
+		return super.keyPressed(event) || true;
+	}
+
+	private boolean keyReleasedControls(KeyEvent event) {
+		if(recordingShortcut != null) {
+			int modifier = ShortcutBinding.modifierForKey(event.key());
+			if(modifier != 0 && recordingModifierKey == event.key()) {
+				wlc.shortcuts.set(recordingShortcut, new ShortcutBinding(event.key(), 0));
+				recordingShortcut = null;
+				recordingModifiers = 0;
+				recordingModifierKey = GLFW.GLFW_KEY_UNKNOWN;
+				updateShortcutButtons();
+				return true;
+			}
+			if(modifier != 0) {
+				recordingModifiers &= ~modifier;
+				return true;
+			}
+		}
+		return true;
+	}
+
+	private void updateShortcutButtons() {
+		if(wlc.shortcuts == null) return;
+		for(ShortcutRow row : shortcutRows) {
+			if(row.action == recordingShortcut) {
+				String prefix = recordingModifiers == 0 ? "" : ShortcutBinding.modifiersLabel(recordingModifiers);
+				row.bindButton.setMessage(Component.literal(prefix.isBlank() ? "Press..." : prefix + "+..."));
+			}
+			else {
+				row.bindButton.setMessage(Component.literal(wlc.shortcuts.label(row.action)));
+			}
+		}
 	}
 	
 	private void prepareToplevel(WLCToplevel toplevel) {
@@ -775,6 +973,8 @@ public class WindowManagerScreen extends Screen {
 	}
 	
 	private static record HoveredSurface(WindowElement element, WLCSurface surface, float rx, float ry) {}
+
+	private static record ShortcutRow(ShortcutAction action, Button bindButton, Button resetButton) {}
 	
 	private static class ImplicitGrab {
 		

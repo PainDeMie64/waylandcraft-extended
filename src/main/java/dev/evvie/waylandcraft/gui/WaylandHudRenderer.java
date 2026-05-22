@@ -10,6 +10,7 @@ import dev.evvie.waylandcraft.WaylandCraft.KeyboardCaptureMode;
 import dev.evvie.waylandcraft.bridge.IconSurface;
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow.SurfaceGeometry;
 import dev.evvie.waylandcraft.bridge.WLCToplevel;
+import dev.evvie.waylandcraft.input.ShortcutAction;
 import dev.evvie.waylandcraft.render.RenderUtils;
 import dev.evvie.waylandcraft.render.RenderUtils.FitRect;
 import dev.evvie.waylandcraft.render.WindowFramebuffer;
@@ -66,13 +67,13 @@ public class WaylandHudRenderer {
 			int suffixColor;
 			if(mode == KeyboardCaptureMode.HARD_CAPTURE) {
 				prefix = "Mouse+keys -> ";
-				suffix = shortcutSuffix(wlc.keyToggleHardCapture);
+				suffix = shortcutSuffix(ShortcutAction.HARD_CAPTURE);
 				prefixColor = Color.red.getRGB();
 				suffixColor = Color.red.getRGB();
 			}
 			else if(mode == KeyboardCaptureMode.CAPTURE) {
 				prefix = "Keys -> ";
-				suffix = shortcutSuffix(wlc.keyToggleKeyboardCapture);
+				suffix = shortcutSuffix(ShortcutAction.KEYBOARD_CAPTURE);
 				prefixColor = Color.red.getRGB();
 				suffixColor = Color.red.getRGB();
 			}
@@ -104,9 +105,9 @@ public class WaylandHudRenderer {
 		return text + ellipsis;
 	}
 
-	private String shortcutSuffix(net.minecraft.client.KeyMapping mapping) {
-		if(mapping == null || mapping.isUnbound()) return "";
-		return " (" + mapping.getTranslatedKeyMessage().getString() + ")";
+	private String shortcutSuffix(ShortcutAction action) {
+		if(wlc.shortcuts == null || wlc.shortcuts.binding(action).isUnbound()) return "";
+		return " (" + wlc.shortcuts.label(action) + ")";
 	}
 
 	private record StatusLine(String prefix, String title, String suffix, int prefixColor, int titleColor, int suffixColor, int width) {}

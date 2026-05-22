@@ -9,8 +9,6 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.mojang.blaze3d.platform.InputConstants;
-
 import dev.evvie.waylandcraft.WindowDisplay.DisplayHitResult;
 import dev.evvie.waylandcraft.WindowDisplay.MonitorControl;
 import dev.evvie.waylandcraft.bridge.WLCAbstractWindow;
@@ -38,6 +36,9 @@ import dev.evvie.waylandcraft.grabs.WindowGrab;
 import dev.evvie.waylandcraft.gui.AppLauncherScreen;
 import dev.evvie.waylandcraft.gui.WaylandHudRenderer;
 import dev.evvie.waylandcraft.gui.WindowManagerScreen;
+import dev.evvie.waylandcraft.input.ShortcutAction;
+import dev.evvie.waylandcraft.input.ShortcutManager;
+import dev.evvie.waylandcraft.input.ShortcutManager.ShortcutResult;
 import dev.evvie.waylandcraft.item.WindowItem;
 import dev.evvie.waylandcraft.item.WindowItemManager;
 import dev.evvie.waylandcraft.render.WindowInHandRenderer;
@@ -47,7 +48,6 @@ import dev.evvie.waylandcraft.settings.WaylandCraftSettingsManager;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelExtractionContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
@@ -55,12 +55,10 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.minecraft.client.Camera;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -72,7 +70,6 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	public static final boolean DEBUG_INPUT = envFlagEnabled("WAYLANDCRAFT_DEBUG_INPUT");
 	public static final boolean DEBUG_OVERLAY = envFlagEnabled("WAYLANDCRAFT_DEBUG_OVERLAY");
 	public static final boolean DEBUG_TEXTURES = envFlagEnabled("WAYLANDCRAFT_DEBUG_TEXTURES");
-	private static final KeyMapping.Category KEYBIND_CATEGORY = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "keys"));
 	
 	public static WaylandCraft instance;
 	
@@ -90,17 +87,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	public XDGDesktopManager xdgManager;
 	public DesktopManager desktopManager;
 	public WaylandCraftSettingsManager settingsManager;
-	
-	public KeyMapping keyOpenScreen;
-	public KeyMapping keyOpenAppLauncher;
-	public KeyMapping keyPlaceDesktopPanel;
-	public KeyMapping keyToggleKeyboardCapture;
-	public KeyMapping keyToggleHardCapture;
-	public KeyMapping keyToggleMonitorRotation;
-	public KeyMapping keyToggleMonitorSnapping;
-	public KeyMapping keyRotationAxisX;
-	public KeyMapping keyRotationAxisY;
-	public KeyMapping keyRotationAxisZ;
+	public ShortcutManager shortcuts;
 	
 	public WindowInHandRenderer windowInHandRenderer = new WindowInHandRenderer();
 	public WindowInItemFrameRenderer windowInItemFrameRenderer = new WindowInItemFrameRenderer();
@@ -148,17 +135,7 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		}
 		
 		instance = this;
-		
-		keyOpenScreen = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.windowManager", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, KEYBIND_CATEGORY));
-		keyOpenAppLauncher = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.appLauncher", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, KEYBIND_CATEGORY));
-		keyPlaceDesktopPanel = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.desktopPanel", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEYBIND_CATEGORY));
-		keyToggleKeyboardCapture = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.keyboardCapture", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEYBIND_CATEGORY));
-		keyToggleHardCapture = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.hardCapture", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEYBIND_CATEGORY));
-		keyToggleMonitorRotation = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.monitorRotation", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEYBIND_CATEGORY));
-		keyToggleMonitorSnapping = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.monitorSnapping", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEYBIND_CATEGORY));
-		keyRotationAxisX = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.rotationAxisX", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_X, KEYBIND_CATEGORY));
-		keyRotationAxisY = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.rotationAxisY", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_Y, KEYBIND_CATEGORY));
-		keyRotationAxisZ = KeyMappingHelper.registerKeyMapping(new KeyMapping("waylandcraft.key.rotationAxisZ", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_Z, KEYBIND_CATEGORY));
+		shortcuts = new ShortcutManager(Minecraft.getInstance().gameDirectory);
 		
 		LevelRenderEvents.COLLECT_SUBMITS.register(this::renderWorld);
 		LevelRenderEvents.END_EXTRACTION.register(this::updateWorld);
@@ -334,23 +311,6 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 	
 	public void onClientTick(Minecraft minecraft) {
 		if(minecraft.player == null) return;
-		
-		if(keyOpenScreen.consumeClick()) {
-			releaseInputCaptureForUi("open-window-manager");
-			minecraft.setScreen(new WindowManagerScreen(WaylandCraft.instance));
-			return;
-		}
-		
-		if(keyOpenAppLauncher.consumeClick()) {
-			minecraft.setScreen(new AppLauncherScreen(WaylandCraft.instance));
-			return;
-		}
-
-		if(desktopManager != null && keyPlaceDesktopPanel.consumeClick()) {
-			desktopManager.placePanelInFrontOfPlayer();
-			return;
-		}
-		
 	}
 	
 	private void onClientJoin(ClientPacketListener listener, PacketSender sender, Minecraft minecraft) {
@@ -918,36 +878,17 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 				pointerCapture == null ? "none" : describeSurfaceOwner(pointerCapture.surface));
 		}
 
-		if(matchesKey(keyToggleKeyboardCapture, event)) {
-			if(press) toggleKeyboardCapture();
-			return true;
-		}
-
-		if(matchesKey(keyToggleHardCapture, event)) {
-			if(press) toggleHardCapture();
-			return true;
-		}
-
-		if(matchesKey(keyToggleMonitorRotation, event)) {
-			if(press) toggleRotationMode();
-			return true;
-		}
-
-		if(matchesKey(keyToggleMonitorSnapping, event)) {
-			if(press) toggleMonitorSnapping();
-			return true;
-		}
-
-		if(desktopManager != null && matchesKey(keyPlaceDesktopPanel, event)) {
-			if(press) desktopManager.placePanelInFrontOfPlayer();
-			return true;
+		if(shortcuts != null) {
+			ShortcutResult shortcut = shortcuts.handle(event, action);
+			if(shortcut.action() != null) handleShortcut(shortcut.action());
+			if(shortcut.consume()) return true;
 		}
 
 		if(rotationGrab != null) {
 			if(press) {
-				if(matchesKey(keyRotationAxisX, event)) rotationGrab.setAxis(rotationGrab.axis() == Axis.X ? Axis.NONE : Axis.X);
-				else if(matchesKey(keyRotationAxisY, event)) rotationGrab.setAxis(rotationGrab.axis() == Axis.Y ? Axis.NONE : Axis.Y);
-				else if(matchesKey(keyRotationAxisZ, event)) rotationGrab.setAxis(rotationGrab.axis() == Axis.Z ? Axis.NONE : Axis.Z);
+				if(shortcuts != null && shortcuts.binding(ShortcutAction.ROTATION_AXIS_X).matches(event)) rotationGrab.setAxis(rotationGrab.axis() == Axis.X ? Axis.NONE : Axis.X);
+				else if(shortcuts != null && shortcuts.binding(ShortcutAction.ROTATION_AXIS_Y).matches(event)) rotationGrab.setAxis(rotationGrab.axis() == Axis.Y ? Axis.NONE : Axis.Y);
+				else if(shortcuts != null && shortcuts.binding(ShortcutAction.ROTATION_AXIS_Z).matches(event)) rotationGrab.setAxis(rotationGrab.axis() == Axis.Z ? Axis.NONE : Axis.Z);
 			}
 			return true;
 		}
@@ -969,8 +910,22 @@ public class WaylandCraft implements ModInitializer, ClientModInitializer {
 		return true;
 	}
 
-	private boolean matchesKey(KeyMapping mapping, net.minecraft.client.input.KeyEvent event) {
-		return mapping != null && !mapping.isUnbound() && mapping.matches(event);
+	private void handleShortcut(ShortcutAction action) {
+		switch(action) {
+			case WINDOW_MANAGER -> {
+				releaseInputCaptureForUi("open-window-manager");
+				Minecraft.getInstance().setScreen(new WindowManagerScreen(WaylandCraft.instance));
+			}
+			case APP_LAUNCHER -> Minecraft.getInstance().setScreen(new AppLauncherScreen(WaylandCraft.instance));
+			case DESKTOP_PANEL -> {
+				if(desktopManager != null) desktopManager.placePanelInFrontOfPlayer();
+			}
+			case KEYBOARD_CAPTURE -> toggleKeyboardCapture();
+			case HARD_CAPTURE -> toggleHardCapture();
+			case MONITOR_ROTATION -> toggleRotationMode();
+			case MONITOR_SNAPPING -> toggleMonitorSnapping();
+			case ROTATION_AXIS_X, ROTATION_AXIS_Y, ROTATION_AXIS_Z -> {}
+		}
 	}
 
 	private void toggleKeyboardCapture() {
