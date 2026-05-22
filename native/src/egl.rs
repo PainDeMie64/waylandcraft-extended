@@ -127,11 +127,18 @@ impl EGLHelper {
     pub fn get_render_node(&self) -> Result<DrmNode, ()> {
         let mut dev_ret: EGLAttrib = 0;
 
-        (self.eglQueryDisplayAttribEXT)(
+        if (self.eglQueryDisplayAttribEXT)(
             self.display,
             EGL_DEVICE_EXT,
             &mut dev_ret,
-        );
+        ) != EGL_TRUE
+        {
+            eprintln!(
+                "Failed to query EGL_DEVICE_EXT! Error: {:x}",
+                (self.eglGetError)(),
+            );
+            return Err(());
+        }
 
         let dev: EGLDeviceEXT = (dev_ret as usize) as EGLDeviceEXT;
 
@@ -143,13 +150,19 @@ impl EGLHelper {
             return DrmNode::from_path(path).map_err(|_| ());
         }
 
-        eprintln!("Querying EGL_DRM_RENDER_NODE_FILE_EXT returned null!");
+        eprintln!(
+            "Querying EGL_DRM_RENDER_NODE_FILE_EXT failed! Error: {:x}",
+            (self.eglGetError)(),
+        );
 
         let drm_path_ptr =
             (self.eglQueryDeviceStringEXT)(dev, EGL_DRM_DEVICE_FILE_EXT);
 
         if drm_path_ptr.is_null() {
-            eprintln!("Querying EGL_DRM_DEVICE_FILE_EXT returned null!");
+            eprintln!(
+                "Querying EGL_DRM_DEVICE_FILE_EXT failed! Error: {:x}",
+                (self.eglGetError)(),
+            );
             return Err(());
         }
 
