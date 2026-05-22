@@ -80,6 +80,7 @@ public class WindowManagerScreen extends Screen {
 	private int debugOutputBoundsWidth = -1;
 	private int debugOutputBoundsHeight = -1;
 	private long debugLastPointerLogNanos = 0L;
+	private boolean bridgeKeyboardActive = false;
 	
 	// All window elements currently displayed, sorted by depth from bottom-most (root) to top-most (last leaf)
 	public ArrayList<WindowElement> windows = new ArrayList<WindowElement>();
@@ -186,7 +187,7 @@ public class WindowManagerScreen extends Screen {
 			addRenderableWidget(row.resetButton);
 		}
 		
-		wlc.bridge.activateKeyboard();
+		setBridgeKeyboardActive(false);
 	}
 
 	private void buildShortcutRows() {
@@ -311,6 +312,7 @@ public class WindowManagerScreen extends Screen {
 		}
 
 		if(controlsMode) {
+			setBridgeKeyboardActive(false);
 			buttons.forEach((b) -> b.setFocused(false));
 			showControlsWidgets();
 			renderControlsPanel(context);
@@ -353,6 +355,7 @@ public class WindowManagerScreen extends Screen {
 			wlc.bridge.focusSurface(null);
 			setFocused(null); // Unfocus any widgets too
 		}
+		setBridgeKeyboardActive(focused != null);
 		
 		windows.clear();
 		
@@ -618,11 +621,11 @@ public class WindowManagerScreen extends Screen {
 	@Override
 	public boolean keyPressed(KeyEvent event) {
 		InputTrace.currentOrBegin("wm.key_press", "\"key\":" + event.key() + ",\"scancode\":" + event.scancode() + ",\"modifiers\":" + event.modifiers() + ",\"focused\":" + InputTrace.s(describeWindow(focused)));
-		if(controlsMode) return keyPressedControls(event);
-		if(event.key() == GLFW.GLFW_KEY_ESCAPE) {
-			this.onClose();
-			return true;
+		if(controlsMode) {
+			if(recordingShortcut == null && closeFromKey(event, "controls")) return true;
+			return keyPressedControls(event);
 		}
+		if(closeFromKey(event, "windows")) return true;
 		if(resizeMode) return true;
 		
 		// Forward key press to currently focused widget
@@ -644,6 +647,7 @@ public class WindowManagerScreen extends Screen {
 		InputTrace.currentOrBegin("wm.key_release", "\"key\":" + event.key() + ",\"scancode\":" + event.scancode() + ",\"modifiers\":" + event.modifiers() + ",\"focused\":" + InputTrace.s(describeWindow(focused)));
 		if(controlsMode) return keyReleasedControls(event);
 		if(resizeMode) return true;
+		if(isCloseKey(event)) return true;
 		
 		if(super.keyReleased(event)) return true;
 		
@@ -688,7 +692,31 @@ public class WindowManagerScreen extends Screen {
 			implicitGrab.pressedMouseButtons.forEach((button) -> wlc.bridge.sendButton(0x110 + button, 0));
 			implicitGrab = null;
 		}
-		wlc.bridge.deactivateKeyboard();
+		setBridgeKeyboardActive(false);
+	}
+
+	@Override
+	public boolean shouldCloseOnEsc() {
+		return true;
+	}
+
+	private boolean closeFromKey(KeyEvent event, String context) {
+		if(!isCloseKey(event)) return false;
+		InputTrace.event("wm", "close_key", "\"context\":" + InputTrace.s(context) + ",\"key\":" + event.key() + ",\"modifiers\":" + event.modifiers());
+		this.onClose();
+		return true;
+	}
+
+	private boolean isCloseKey(KeyEvent event) {
+		if(event.key() == GLFW.GLFW_KEY_ESCAPE) return true;
+		return wlc.shortcuts != null && wlc.shortcuts.binding(ShortcutAction.WINDOW_MANAGER).matches(event);
+	}
+
+	private void setBridgeKeyboardActive(boolean active) {
+		if(bridgeKeyboardActive == active) return;
+		bridgeKeyboardActive = active;
+		if(active) wlc.bridge.activateKeyboard();
+		else wlc.bridge.deactivateKeyboard();
 	}
 
 	private boolean keyPressedControls(KeyEvent event) {
@@ -898,7 +926,8 @@ public class WindowManagerScreen extends Screen {
 		return root instanceof WLCToplevel toplevel ? toplevel : null;
 	}
 
-	private String describeWindow(WLCAbstractWindow window) {
+	private String describeWindow(@Nullable WLCAbstractWindow window) {
+		if(window == null) return "none";
 		WLCToplevel root = rootToplevel(window);
 		if(root != null) {
 			return "window=" + root.getHandle() + " title=" + root.title + " appID=" + root.appID + " fullscreen=" + root.fullscreen;
