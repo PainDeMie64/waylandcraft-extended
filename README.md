@@ -8,6 +8,12 @@ All core credit goes to the original WaylandCraft project: the Minecraft Wayland
 
 This fork adds customized features and bug fixes on top of that work, especially around Xwayland, Steam/Proton workflows, input capture, cursor handling, in-world monitor controls, and desktop-style window management.
 
+## Discontinued
+
+WaylandCraft Extended is discontinued. Upstream WaylandCraft now supports X11 applications through xwayland-satellite, so this fork is no longer being actively developed.
+
+If you have questions or inquiries about using code from this fork, contact me on Discord at `@skycrafter`.
+
 For the original project, base documentation, screenshots, build instructions, system requirements, general usage, and the original Modrinth release, start here:
 
 - [EVV1E/waylandcraft on GitHub](https://github.com/EVV1E/waylandcraft)
@@ -118,9 +124,7 @@ Fork-specific controls are configurable from the window manager's `Controls` pan
 
 ## Status
 
-WaylandCraft Extended is experimental and Linux-only. Xwayland, Steam, Proton, and in-world monitor controls are active fork features and may change quickly.
-
-This repository is intended to be easy to find and share as the Xwayland/Steam/Proton-focused WaylandCraft fork. The recommended public repository name is `waylandcraft-extended`.
+WaylandCraft Extended is discontinued and no longer actively maintained. This repository remains available for reference and for anyone interested in the fork-specific Xwayland, Steam, Proton, input, cursor, and in-world monitor changes.
 
 ## Contribution Policy
 All contributions must comply with the GPLv3 license. See [LICENSE](LICENSE).
